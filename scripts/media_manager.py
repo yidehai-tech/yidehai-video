@@ -88,10 +88,13 @@ def load_config() -> dict:
         data = {}
     data.setdefault("local_bg_dirs", [])
     data.setdefault("local_bgm_dirs", [])
+    data.setdefault("local_footage_dirs", [])
+    data.setdefault("local_motion_templates_dir", "")
     data.setdefault("ledger_path", str(DEFAULT_LEDGER_PATH))
     data.setdefault("cache_bg_dir", str(CACHE_BG_DIR))
     data.setdefault("cache_bgm_dir", str(CACHE_BGM_DIR))
     data.setdefault("bg_source", "both")  # both | local | online
+    data.setdefault("initialized", False)
     data.setdefault("onboarding_dismissed", False)
     return data
 
@@ -344,18 +347,25 @@ def main() -> None:
 
     p_cfg = sub.add_parser("config", help="查看或保存本机素材目录/偏好（写入 ~/.yidehai-video/config.json）")
     p_cfg.add_argument("--show", action="store_true", help="查看当前配置（不回显密钥明文）")
-    p_cfg.add_argument("--add-bg-dir", help="添加并记住本地背景视频目录")
-    p_cfg.add_argument("--add-bgm-dir", help="添加并记住本地轻音乐目录")
+    p_cfg.add_argument("--add-bg-dir", help="添加并记住本地风景空镜视频目录（供大字报使用）")
+    p_cfg.add_argument("--add-footage-dir", help="添加并记住本地业务实拍素材目录（视频+图片，供实拍混剪/省点混剪使用）")
+    p_cfg.add_argument("--add-bgm-dir", help="添加并记住本地免版权轻音乐目录")
+    p_cfg.add_argument("--set-motion-templates-dir", help="设置本机 MotionGit 免费口播模板目录")
     p_cfg.add_argument("--bg-source", choices=["both", "local", "online"], help="背景来源策略：both(混合) / local / online")
     p_cfg.add_argument("--set-pexels-key", help="保存可选 Pexels 免费 API Key 到本机配置")
     p_cfg.add_argument("--set-pixabay-key", help="保存可选 Pixabay 免费 API Key 到本机配置")
     p_cfg.add_argument("--set-jamendo-id", help="保存可选 Jamendo 免费音乐 Client ID 到本机配置")
-    p_cfg.add_argument("--dismiss-onboarding", action="store_true", help="标记用户已明确跳过首次在线 Key 引导，后续不再提醒")
+    p_cfg.add_argument("--mark-initialized", action="store_true", help="标记首次素材与环境初始化已完成，后续不再主动弹窗")
+    p_cfg.add_argument("--dismiss-onboarding", action="store_true", help="标记用户已明确跳过首次引导，后续不再提醒")
 
     p_fetch = sub.add_parser("fetch", help="按需拉取在线免版权风景空镜或 BGM 到本机缓存")
     p_fetch.add_argument("--kind", choices=["bg_videos", "bgm_tracks"], default="bg_videos")
     p_fetch.add_argument("--count", type=int, default=3)
     p_fetch.add_argument("--query", help="可选英文风景检索词（仅 API 模式使用）")
+
+    p_foot = sub.add_parser("footage", help="从本地业务实拍目录抽取未用过的视频/图片素材（全局防重）")
+    p_foot.add_argument("--count", type=int, default=3, help="需要抽取的素材数量")
+    p_foot.add_argument("--kind", choices=["any", "video", "image"], default="any", help="筛选类型")
 
     args = parser.parse_args()
     cfg = load_config()
@@ -367,25 +377,42 @@ def main() -> None:
             if p not in cfg["local_bg_dirs"]:
                 cfg["local_bg_dirs"].append(p)
                 changed = True
+            cfg["initialized"] = True
+        if args.add_footage_dir:
+            p = str(Path(args.add_footage_dir).expanduser().resolve())
+            if p not in cfg["local_footage_dirs"]:
+                cfg["local_footage_dirs"].append(p)
+                changed = True
+            cfg["initialized"] = True
         if args.add_bgm_dir:
             p = str(Path(args.add_bgm_dir).expanduser().resolve())
             if p not in cfg["local_bgm_dirs"]:
                 cfg["local_bgm_dirs"].append(p)
                 changed = True
+        if args.set_motion_templates_dir:
+            cfg["local_motion_templates_dir"] = str(Path(args.set_motion_templates_dir).expanduser().resolve())
+            cfg["initialized"] = True
+            changed = True
         if args.bg_source:
             cfg["bg_source"] = args.bg_source
             changed = True
         if args.set_pexels_key:
             cfg["pexels_api_key"] = args.set_pexels_key.strip()
+            cfg["initialized"] = True
             changed = True
         if args.set_pixabay_key:
             cfg["pixabay_api_key"] = args.set_pixabay_key.strip()
+            cfg["initialized"] = True
             changed = True
         if args.set_jamendo_id:
             cfg["jamendo_client_id"] = args.set_jamendo_id.strip()
             changed = True
+        if args.mark_initialized:
+            cfg["initialized"] = True
+            changed = True
         if args.dismiss_onboarding:
             cfg["onboarding_dismissed"] = True
+            cfg["initialized"] = True
             changed = True
         if changed:
             save_config(cfg)
@@ -403,6 +430,53 @@ def main() -> None:
             "ok": True,
             "kind": args.kind,
             "downloaded": [str(f) for f in files],
+        }, ensure_ascii=False, indent=2))
+
+    elif args.cmd == "footage":
+        video_exts = {".mp4", ".mov", ".m4v", ".mkv"}
+        image_exts = {".jpg", ".jpeg", ".png", ".webp"}
+        allow_exts = video_exts | image_exts
+        if args.kind == "video":
+            allow_exts = video_exts
+        elif args.kind == "image":
+            allow_exts = image_exts
+
+        ledger_path = Path(cfg.get("ledger_path") or DEFAULT_LEDGER_PATH)
+        used_names: set[str] = set()
+        if ledger_path.exists():
+            try:
+                ldata = json.loads(ledger_path.read_text(encoding="utf-8"))
+                for item in ldata.get("used_footage", []):
+                    used_names.add(str(item))
+            except Exception:
+                pass
+
+        candidates: list[Path] = []
+        for d in cfg.get("local_footage_dirs", []):
+            dp = Path(d).expanduser()
+            if not dp.is_dir():
+                continue
+            for f in dp.rglob("*"):
+                if f.is_file() and f.suffix.lower() in allow_exts and not f.name.startswith("."):
+                    candidates.append(f)
+
+        fresh = [f for f in candidates if f.name not in used_names]
+        pool = fresh if len(fresh) >= args.count else (fresh + [f for f in candidates if f.name in used_names])
+        random.shuffle(pool)
+        picked = pool[: args.count]
+        print(json.dumps({
+            "ok": True,
+            "total_scanned": len(candidates),
+            "fresh_available": len(fresh),
+            "picked": [
+                {
+                    "path": str(f),
+                    "name": f.name,
+                    "type": "image" if f.suffix.lower() in image_exts else "video",
+                    "fresh": f.name not in used_names,
+                }
+                for f in picked
+            ],
         }, ensure_ascii=False, indent=2))
 
 

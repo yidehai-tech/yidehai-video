@@ -45,39 +45,84 @@
 
 ---
 
-## 二、可选免费中文配音依赖（按需安装，同样不阻塞）
+## 二、HeyGen HyperFrames 自动安装（`实拍混剪` / `即梦片` / `Flow片` 高画质渲染引擎）
 
-仅当同事明确要求加**免费纯人声干声旁白**时才检查（无声大字报/动效片不需要此步）：
-- **配音（`edge-tts`）**：走国内清华镜像秒装（已装则跳过）：
-  ```sh
-  python3 -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -U edge-tts
-  ```
-  默认音色：`zh-CN-XiaoxiaoNeural`（纯人声无 BGM）。
-- **音视频合成（`ffmpeg`）**：若缺失则自动装（macOS：`brew install ffmpeg`；Windows：`winget install -e --id Gyan.FFmpeg --accept-source-agreements --accept-package-agreements`）。
+官方仓库：`https://github.com/heygen-com/hyperframes`（需要 `Node.js ≥ 22` 与 `FFmpeg`）。
+当同事首次使用 **`实拍混剪`**、**`即梦片`** 或 **`Flow片`** 时，自动检测并安装：
+
+1. **先静默检测**：
+   ```sh
+   hyperframes --version
+   ```
+   若已安装且 `npx hyperframes doctor --json` 中 `ok === true`，直接复用。
+2. **未安装时走国内镜像一键全局安装 + 补齐浏览器内核**：
+   - **macOS / Linux**：
+     ```sh
+     npm_config_registry=https://registry.npmmirror.com npm install -g hyperframes
+     npx hyperframes browser ensure
+     npx hyperframes doctor --json
+     ```
+   - **Windows (PowerShell)**：
+     ```powershell
+     $env:npm_config_registry="https://registry.npmmirror.com"
+     npm install -g hyperframes
+     npx hyperframes browser ensure
+     npx hyperframes doctor --json
+     ```
+   - 若同事需要让当前 AI 工具也获得官方 HyperFrames 技能支持，可顺手执行：`npx skills add heygen-com/hyperframes`。
 
 ---
 
-## 三、非阻塞降级原则（红线：绝不卡死同事）
+## 三、`ego-lite`（`ego-browser`）自动检测与安装（`Flow片` 全自动前置必需）
 
-1. **最多尝试 1 次**：上述 `@openmotion/app@latest` 命令只尝试 1 次（禁止反复重试、禁止切回 `git clone` 源码仓库拉取 10+ 分钟）。
+使用 **`Flow片`**（Google Flow 全自动生视频）时，**必须依赖 `ego-lite`（`ego-browser`）**复用已登录的 Google AI Pro 会话：
+
+1. **先检测是否就绪**：
+   - macOS / Linux：`command -v ego-browser && ego-browser nodejs -e "console.log('ego-browser ready')"`
+   - Windows (PowerShell)：`Get-Command ego-browser; ego-browser nodejs -e "console.log('ego-browser ready')"`
+2. **未安装时的自动处理**：
+   - **macOS**：直接引导/运行 `ego-browser` 官方 macOS 安装流程（下载对应 arm64/x64 DMG 安装 `ego lite.app` 到 `/Applications` 并拉起），提示同事在弹出的 `ego lite` 窗口里点完首次引导（自动把 `ego-browser` 注册到 `~/.local/bin`），再验证 `ego-browser ready`。
+   - **Windows**：目前官方无静默脚本，直接为同事打开下载页 `https://lite.ego.app/` 并给出 3 步极简指引：① 运行安装包（若 SmartScreen 拦截点“更多信息 → 仍要运行”）；② 打开 `ego lite` 完成首次引导并登录 Google Flow；③ 新开终端验证 `ego-browser ready`。
+3. 就绪后立刻切入 `knowledge/08-ai-video-engines.md` 第二节执行全自动生成。
+
+---
+
+## 四、即梦 CLI（`dreamina`）与可选免费配音依赖
+
+1. **即梦 CLI（`dreamina`，仅在使用 `即梦片` 时检测）**：
+   - 检测：`dreamina --version && dreamina user_credit`。
+   - 未登录时执行 `dreamina login`（OAuth Device Flow），把终端输出的授权链接与 `user_code` 发给同事扫码完成，**保持命令运行直至打印登录成功后再明确回复同事**。
+   - 若未安装 `dreamina`，告知同事按即梦官方 CLI 指引安装后再试（绝不自行编造假命令）。
+2. **免费中文配音（`edge-tts`，用于 `实拍混剪` 与 `省点混剪` 干声旁白）**：
+   - 走国内清华镜像秒装（已装则跳过）：
+     ```sh
+     python3 -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -U edge-tts
+     ```
+   - 默认音色：`zh-CN-XiaoxiaoNeural` 或 `zh-CN-YunxiNeural`（纯人声无 BGM）。
+3. **音视频合成（`ffmpeg`）**：
+   - 若缺失则自动装（macOS：`brew install ffmpeg`；Windows：`winget install -e --id Gyan.FFmpeg --accept-source-agreements --accept-package-agreements`）。
+
+---
+
+## 五、非阻塞降级原则（红线：绝不卡死同事）
+
+1. **最多尝试 1 次**：上述 `@openmotion/app@latest` 或 `hyperframes` 安装命令只尝试 1 次（禁止反复重试、禁止切回 `git clone` 源码仓库拉取 10+ 分钟）。
 2. **失败立刻降级继续干活**：若因网络/权限/Node 版本安装失败，**不要临场手写粗糙 HTML 拼低质视频**，而是：
-   - 用 1 句大白话说明原因（例如“当前网络/Node 环境暂未装上 OpenMotion，先不耽误你出片”）；
+   - 用 1 句大白话说明原因（例如“当前网络/Node 环境暂未装上渲染引擎，先不耽误你出片”）；
    - 立刻交付可直接复制进剪映/即梦的「逐屏大字/字幕清单 + 封面双行大字 + 纯净配音文本 + 6 平台发布文案」，确保同事当场就能完成任务。
 3. **质量红线（来自真实反馈）**：曾有降级版用简单几何图形渲染出 MP4，同事评价「效果太差」。**不要把简陋本地渲染包装成「成片」交付**；若确需本地渲染，先确认对方接受图形动效风，或明确标注为占位预览片并说明后续用引擎重做。详见 `knowledge/06-rendering-playbook.md` 第五节。
 
 ---
 
-## 四、Skill 更新时自动联动升级依赖（版本同步机制）
+## 六、Skill 更新时自动联动升级依赖（版本同步机制）
 
-当成员说 **「更新一下 `yidehai-video-skill`」** / **「同步最新视频助手」** 时，按以下 3 步一站式升级（同样遵循非阻塞原则，单步失败不阻断整体）：
+当成员说 **「更新一下 `yidehai-video-skill`」** / **「同步最新视频助手」** 时，按以下 4 步一站式升级（同样遵循非阻塞原则，单步失败不阻断整体）：
 
 1. **拉取最新版 Skill 与知识库**：
-   - 从 `https://github.com/yidehai-tech/yidehai-video-skill` 更新本 Skill 到最新版本（覆盖更新 `SKILL.md` 及 `knowledge/` 全部文档）。
-2. **联动升级 OpenMotion 到最新稳定版**：
-   - 使用国内镜像执行：
-     - macOS / Linux：`npm_config_registry=https://registry.npmmirror.com npm_config_fetch_retries=0 npx --yes @openmotion/app@latest setup --host workbuddy`（按当前宿主自动替换 `--host`）；
-     - Windows (PowerShell)：`$env:npm_config_registry="https://registry.npmmirror.com"; $env:npm_config_fetch_retries="0"; npx --yes @openmotion/app@latest setup --host workbuddy`。
-   - 若本机已是最新版，**直接跳过，不要为「升级」重跑 setup**——重装可能覆盖已手动补齐的 native 组件，导致 `capabilities.export` 再次不可用；若升级成功，自动保持现有项目与配置不丢失，并按第一节补做一次导出能力自检。
-3. **联动升级已装的可选插件**：
-   - 若本机已安装 `edge-tts`，顺手走清华镜像升级到最新：`python3 -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -U edge-tts`（未装过则跳过，不强行安装）。
-4. **简明汇报结果**：用 2–3 行告诉同事：① Skill 已更新到的版本号；② OpenMotion 等依赖是否已是最新（若有失败项一句带过，不影响继续出片）。
+   - 从 `https://github.com/yidehai-tech/yidehai-video-skill` 更新本 Skill 到最新版本（覆盖更新 `SKILL.md`、`knowledge/` 及 `scripts/`）。
+2. **联动升级 OpenMotion（已装时检查）**：
+   - 若本机已是最新版，**直接跳过，不要为「升级」重跑 setup**——重装可能覆盖已手动补齐的 native 组件；仅在需要升级时走国内镜像执行 `@openmotion/app@latest setup --host workbuddy` 并做导出自检。
+3. **联动升级 HeyGen HyperFrames 与已装可选插件**：
+   - 若本机已安装 `hyperframes`，顺手走国内镜像升级：`npm_config_registry=https://registry.npmmirror.com npm install -g hyperframes`；
+   - 若本机已安装 `edge-tts`，顺手走清华镜像升级：`python3 -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -U edge-tts`（未装过则跳过）。
+4. **简明汇报结果**：用 2–3 行告诉同事：① Skill 已更新到的版本号；② 依赖工具是否已是最新（若有失败项一句带过，不影响继续出片）。
