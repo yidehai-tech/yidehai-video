@@ -23,6 +23,9 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import media_manager
+
 WIDTH = 1080
 HEIGHT = 1920
 
@@ -105,14 +108,17 @@ def save_ledger(ledger_path: Path, data: dict) -> None:
     ledger_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def pick_unique_bg_segment(bg_dir: Path, duration: float, ledger: dict) -> tuple[Path, float]:
-    """从背景素材池自动挑选未用过的 (文件, 起始秒) 时间窗，确保画面绝不重复。"""
-    videos = sorted(
-        p for p in bg_dir.rglob("*")
-        if p.is_file() and p.suffix.lower() in {".mp4", ".mov", ".mkv", ".webm"}
-    )
+def pick_unique_bg_segment(bg_dirs: list[Path], duration: float, ledger: dict) -> tuple[Path, float] | None:
+    """从多个背景素材目录自动挑选未用过的 (文件, 起始秒) 时间窗，确保画面绝不重复。"""
+    videos: list[Path] = []
+    for d in bg_dirs:
+        if d.exists():
+            videos.extend(
+                p for p in d.rglob("*")
+                if p.is_file() and p.suffix.lower() in {".mp4", ".mov", ".mkv", ".webm"}
+            )
     if not videos:
-        raise FileNotFoundError(f"背景素材目录为空：{bg_dir}")
+        return None
 
     used_keys = set(ledger.get("used_bg_segments", []))
     window_step = math.ceil(duration + 0.5)
@@ -140,9 +146,7 @@ def pick_unique_bg_segment(bg_dir: Path, duration: float, ledger: dict) -> tuple
             ledger.setdefault("used_bg_segments", []).append(chosen_key)
             return chosen_path, chosen_start
 
-    raise RuntimeError(
-        f"背景素材池 {bg_dir} 中的可用不重复片段已全部用完（共已用 {len(used_keys)} 段），请补充新空镜素材！"
-    )
+    return None
 
 
 def wrap_line(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTypeFont, max_width: int) -> list[str]:
@@ -335,14 +339,17 @@ def build_overlay_png(
     img.save(out_png, "PNG")
 
 
-def pick_unique_bgm(bgm_dir: Path, duration: float, ledger: dict) -> tuple[Path, float]:
-    """从 BGM 素材池自动挑选未用过的音频/视频音轨片段，防止批量撞音乐。"""
-    tracks = sorted(
-        p for p in bgm_dir.rglob("*")
-        if p.is_file() and p.suffix.lower() in {".mp3", ".m4a", ".wav", ".aac", ".flac", ".ogg", ".mp4"}
-    )
+def pick_unique_bgm(bgm_dirs: list[Path], duration: float, ledger: dict) -> tuple[Path, float] | None:
+    """从多个 BGM 素材目录自动挑选未用过的音频/视频音轨片段，防止批量撞音乐。"""
+    tracks: list[Path] = []
+    for d in bgm_dirs:
+        if d.exists():
+            tracks.extend(
+                p for p in d.rglob("*")
+                if p.is_file() and p.suffix.lower() in {".mp3", ".m4a", ".wav", ".aac", ".flac", ".ogg", ".mp4"}
+            )
     if not tracks:
-        raise FileNotFoundError(f"BGM 素材目录为空：{bgm_dir}")
+        return None
 
     used = set(ledger.get("used_bgm", []))
     random.shuffle(tracks)
@@ -516,16 +523,18 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="亿德海 8.8 秒一镜到底大字报离线合成工具（带防重账本）")
     parser.add_argument("--job", required=True, help="大字报配置 JSON 路径")
     parser.add_argument("--bg", help="指定单个背景空镜视频路径")
-    parser.add_argument("--bg-dir", help="背景空镜素材池目录（自动抽取未用过的时间窗）")
+    parser.add_argument("--bg-dir", help="背景空镜素材池目录（不传则自动读取 ~/.yidehai-video/config.json 记住的目录 + 在线缓存）")
+    parser.add_argument("--bg-source", choices=["both", "local", "online"], help="背景来源：both(本地+在线混合) / local / online")
     parser.add_argument("--bgm", help="指定背景音乐文件（支持 mp3/m4a/wav 或带音轨的 mp4）")
-    parser.add_argument("--bgm-dir", help="BGM 素材池目录（自动轮换未用过片段防重）")
+    parser.add_argument("--bgm-dir", help="BGM 素材池目录（不传则自动读取本机记忆目录 + 在线缓存）")
     parser.add_argument("--bgm-volume", type=float, default=0.85, help="背景音乐音量倍率（默认 0.85）")
     parser.add_argument("--silent", action="store_true", help="强制导出无声版（不加任何背景音乐）")
-    parser.add_argument("--ledger", default="used_history.json", help="防重账本 JSON 路径")
+    parser.add_argument("--ledger", help="防重账本 JSON 路径（默认使用全局 ~/.yidehai-video/used_history.json）")
     parser.add_argument("--out-dir", required=True, help="输出目录")
     parser.add_argument("--force", action="store_true", help="强制覆盖同文案查重限制")
     args = parser.parse_args()
 
+    cfg = media_manager.load_config()
     job = json.loads(Path(args.job).read_text(encoding="utf-8"))
     title = job["title"].strip()
     body = job["body"]
@@ -536,8 +545,8 @@ def main() -> None:
     if theme_key not in THEMES:
         raise ValueError(f"未知主题 {theme_key}，可选：{list(THEMES.keys())}")
 
-    # 1. 文案防重校验
-    ledger_path = Path(args.ledger)
+    # 1. 文案防重校验（默认使用全局账本 ~/.yidehai-video/used_history.json）
+    ledger_path = Path(args.ledger or cfg["ledger_path"])
     ledger = load_ledger(ledger_path)
     copy_hash = hashlib.sha256((title + "\n" + "\n".join(body_lines)).encode("utf-8")).hexdigest()[:16]
     if copy_hash in ledger.get("used_copies", []) and not args.force:
@@ -546,13 +555,29 @@ def main() -> None:
     # 2. 时长微抖动（8.6~9.0s，既贴合 8.8s 标杆又避免批量文件时长完全雷同）
     duration = float(job.get("duration", round(random.uniform(8.6, 9.0), 2)))
 
-    # 3. 背景视频与时间窗防重
+    # 3. 背景视频与时间窗防重（融合：显式路径 / 本机记住的本地目录 / 按需下载的在线空镜缓存）
     bg_video: Path | None = None
     bg_start = 0.0
+    bg_source = args.bg_source or cfg.get("bg_source", "both")
     if args.bg:
         bg_video = Path(args.bg)
-    elif args.bg_dir:
-        bg_video, bg_start = pick_unique_bg_segment(Path(args.bg_dir), duration, ledger)
+    else:
+        bg_dirs: list[Path] = []
+        if args.bg_dir:
+            bg_dirs.append(Path(args.bg_dir))
+        else:
+            if bg_source in ("both", "local"):
+                bg_dirs.extend(Path(d) for d in cfg.get("local_bg_dirs", []))
+            if bg_source in ("both", "online"):
+                bg_dirs.append(Path(cfg["cache_bg_dir"]))
+
+        picked = pick_unique_bg_segment(bg_dirs, duration, ledger)
+        if picked is None and bg_source in ("both", "online"):
+            # 缓存为空或全部用完时，自动按需从在线免版权源拉取新空镜
+            media_manager.ensure_online_media("bg_videos", count=2, cfg=cfg)
+            picked = pick_unique_bg_segment([Path(cfg["cache_bg_dir"])], duration, ledger)
+        if picked is not None:
+            bg_video, bg_start = picked
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -566,9 +591,20 @@ def main() -> None:
         if args.bgm:
             bgm_audio = Path(args.bgm)
             bgm_label = bgm_audio.name
-        elif args.bgm_dir:
-            bgm_audio, bgm_start = pick_unique_bgm(Path(args.bgm_dir), duration, ledger)
-            bgm_label = f"{bgm_audio.name}@{bgm_start:.1f}s"
+        else:
+            bgm_dirs: list[Path] = []
+            if args.bgm_dir:
+                bgm_dirs.append(Path(args.bgm_dir))
+            else:
+                bgm_dirs.extend(Path(d) for d in cfg.get("local_bgm_dirs", []))
+                bgm_dirs.append(Path(cfg["cache_bgm_dir"]))
+            picked_bgm = pick_unique_bgm(bgm_dirs, duration, ledger)
+            if picked_bgm is None:
+                media_manager.ensure_online_media("bgm_tracks", count=2, cfg=cfg)
+                picked_bgm = pick_unique_bgm([Path(cfg["cache_bgm_dir"])], duration, ledger)
+            if picked_bgm is not None:
+                bgm_audio, bgm_start = picked_bgm
+                bgm_label = f"{bgm_audio.name}@{bgm_start:.1f}s"
 
     with tempfile.TemporaryDirectory() as tmp:
         overlay_png = Path(tmp) / "overlay.png"

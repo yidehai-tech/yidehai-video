@@ -1,0 +1,5 @@
+{
+  "_comment": "0 配置在线免版权风景空镜与治愈轻音乐直链清单（仓库只存 URL，不存二进制大文件；使用时由 scripts/media_manager.py 按需下载到同事本机 ~/.yidehai-video/cache/ 并自动防重）。管理员可随时往 bg_videos / bgm_tracks 追加经核验的 CC0/团队共享直链。",
+  "bg_videos": [],
+  "bgm_tracks": []
+}
