@@ -4,7 +4,7 @@ description: >-
   亿德海（yidehai）团队短视频创作与批量出片助手（面向非技术成员）。统一 6 大中文视频形态：「大字报」（8.8秒离线满屏大字）、「动效片」（OpenMotion多屏动效）、「实拍混剪」（0点本地实拍+Edge-TTS+HeyGen HyperFrames）、「即梦片」（即梦CLI纯生/省积分混剪）、「Flow片」（ego-lite全自动Google Flow口播/省点混剪）、「口播包装」（MotionGit免费口播模板）。
   内置首次本地素材路径记忆、品牌合规红线、真实业务规则、爆款写稿方法论、全局素材防重与一键质检双封面。
   当团队成员说“帮我做一条旧衣回收视频”、“做一条大字报/动效片/实拍混剪/即梦片/Flow片/口播包装”、“帮我批量生成 50/100 条视频”、“初始化/配置素材路径”、“更新视频助手”时，自动按本 Skill 执行。
-version: "2.3.0"
+version: "2.3.1"
 ---
 
 # 亿德海团队短视频创作与出片 Skill
@@ -80,9 +80,9 @@ python3 scripts/media_manager.py config --show
   - 调用 `python3 scripts/media_manager.py footage --count 3` 抽取 3 个未用过的本地实拍视频/图片；
   - 运行 `python3 scripts/package_ai_video.py --job job.json --out-dir outputs --organize-by-date` 一键完成配音、拼接、HyperFrames 渲染、8 帧质检图、双封面与全局防重记账。
 - **路径 D：`即梦片`（Opt-in 扣即梦积分 · `dreamina` CLI + HeyGen HyperFrames）**
-  - 严格按 `knowledge/08-ai-video-engines.md` 第一节执行：先 `dreamina_runner.py check` 查余额 → 优先推荐「省积分混剪（即梦 4–5s 吸睛开场 + 2 段本地实拍 + Edge-TTS）」或按要求出纯即梦全片 → `dreamina_runner.py submit`（防重落盘 `submit_id`）→ 下载原片 → `package_ai_video.py` 走 HeyGen HyperFrames 高画质包装。
+  - 严格按 `knowledge/08-ai-video-engines.md` 第一、二、三节执行：先做「选题 → 档位 → 人物/场景」匹配并套用中文口播/无声开场防穿帮提示词模板 → `dreamina_runner.py check` 查余额 → 优先推荐「省积分混剪（即梦 4–5s 无声吸睛开场 + 2 段本地实拍 + Edge-TTS）」或按要求出纯即梦口播全片 → `dreamina_runner.py submit`（防重落盘 `submit_id`）→ 下载原片 → `package_ai_video.py` 走 HeyGen HyperFrames 高画质包装。
 - **路径 F：`Flow片`（Opt-in 扣 Google 点数 · `ego-lite` 全自动 + HeyGen HyperFrames）**
-  - 严格按 `knowledge/08-ai-video-engines.md` 第二节执行：先强校验 `ego-browser ready`（未装则按 `00-auto-setup.md` 第三节自动装/引导装 `ego-lite`）→ 按需走 `Omni 1.2 Flash`（8s=24点 / 10s=30点原生口播）或 `Veo 3.1 Lite`（10点无声开场 + 本地实拍省点混剪）或三档省点轮换 → 核对页面点数后全自动生成并无损下载 720p 原片 → `package_ai_video.py` 走 HeyGen HyperFrames 高画质包装。
+  - 严格按 `knowledge/08-ai-video-engines.md` 第一、二、四节执行：先强校验 `ego-browser ready`（未装则按 `00-auto-setup.md` 第三节自动装/引导装 `ego-lite`）→ 按选题匹配最佳档位（单痛点选 `Omni 1.2 Flash` 8s=24点 / 干货选 10s=30点 / 清单类选 `Veo 3.1 Lite` 10点无声开场 + 本地实拍省点混剪）并套用英画中词防穿帮模板 → 核对页面点数后全自动生成并无损下载 720p 原片 → `package_ai_video.py` 走 HeyGen HyperFrames 高画质包装。
 - **路径 G：`口播包装`（0 点 · MotionGit 官方免费模板）**
   - 按 `knowledge/08-ai-video-engines.md` 第四节，读取成员本机配置的免费 `.motion` 模板目录，驱动 MotionGit 官方 runtime 包装真人实拍口播视频并补齐双封面与抽帧质检。
 

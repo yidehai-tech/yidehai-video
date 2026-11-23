@@ -4,7 +4,47 @@
 
 ---
 
-## 一、即梦 CLI（`dreamina`）—— 国内直连全自动生视频
+## 一、先做「选题 → 档位 → 人物/场景」匹配（绝不盲目花点）
+
+调用即梦或 Google Flow 前，**必须先结合 `knowledge/03-copy-formula.md` 的四维选题矩阵（人群 × 场景 × 品类 × 切角）与 `~/.yidehai-video/used_history.json` 完成选题匹配**，做到「选题决定档位，档位决定字数，场景决定人物与道具」，且相邻视频主动轮换人物与场景，避免画面雷同：
+
+### 1. 选题类型 → 最佳档位与时长匹配表
+
+| 选题类型 | 推荐档位 | 目标时长 & 字数红线 | 为什么这么配 |
+| :--- | :--- | :--- | :--- |
+| **强情绪钩子 / 单痛点直击**（如换季爆柜、旧羽绒服压箱底、旧鞋旧包） | **8s 真人口播档**（Flow `Omni 1.2` 24点 / 即梦 8s） | `8s` · **40–45 字** | 节奏紧凑、信息密度高，最容易拉高完播率 |
+| **3 条避坑干货 / 回收前小细节**（如掏空口袋、保持干燥、打包须知） | **10s 真人口播档**（Flow `Omni 1.2` 30点 / 即梦 10s） | `10s` · **52–58 字** | 3 点干货有呼吸感，不会被 8s 截断 |
+| **多品类清单 / 流程科普 / 信任背书**（如一次打包清单、旧衣去哪了、称重结算） | **省点混剪档**（Flow `Veo 3.1 Lite` 10点无声开场 / 即梦 5s 无声开场 + 2 段本地实拍 + `Edge-TTS`） | `15–20s` · **80–110 字** | **严禁把 80+ 字长清单硬塞进 8–10s AI 口播**；用 AI 吸睛开场 + 真实实拍画面既省点数又更有说服力 |
+| **日常高频场景 / 省点轮换补位**（如退租、周末整理） | **0 点纯实拍混剪**（3 段未用本地实拍 + `Edge-TTS`） | `15–20s` · **80–110 字** | 零点数消耗，搭配付费档轮换把均耗压到 10–15 点/条 |
+
+### 2. 选题场景 → 人物人设与道具参考表（避免千篇一律）
+
+| 选题方向 | 推荐人物（真实中国普通人，拒绝网红摆拍感） | 真实场景与核心道具 |
+| :--- | :--- | :--- |
+| **换季 / 年末清衣柜** | 28–35 岁中国女生，居家休闲卫衣，扎低马尾 | 卧室打开的塞满衣物大衣柜前，手拎旧羽绒服/毛衣，脚边放鼓囊编织袋 |
+| **宝妈清旧童装/绘本/玩偶** | 30 岁左右年轻妈妈，浅色针织衫，亲切自然 | 客厅地毯或儿童房旁，身边放分类好的童装、毛绒玩偶、绘本收纳箱 |
+| **旧鞋旧包蓝海专场** | 25–32 岁上班族女生/男生，居家便装 | 入户玄关塞满的鞋柜前，左手拎旧运动鞋、右手拿闲置托特包 |
+| **租房退租 / 搬家清杂物** | 24–30 岁打工人，T 恤/休闲外套 | 租房客厅，地面堆着纸箱、大号蛇皮袋和叠好的旧衣物/四件套 |
+| **旧棉被 / 毛毯 / 四件套** | 32–45 岁家庭主妇/主夫 | 卧室床边，正在把厚棉被、毛毯塞进大号防尘收纳袋 |
+| **帮爸妈整理老衣柜** | 30 岁左右子女（或温和长辈出镜） | 传统温馨中式客厅/老衣柜前，桌上堆着整齐的老款式外套与针织衫 |
+| **行业揭秘 / 避坑 / 起收科普** | 30–40 岁朴实中国男性回收员，穿深灰/深绿**无字工作服**、戴蓝白劳保手套 | 干净明亮的旧衣分拣仓库门口或小区门口，身后是打包好的大编织袋 |
+
+---
+
+## 二、真人说话类 AI 视频的 6 条提示词铁律（即梦 & Flow 通用）
+
+生成有人出镜说话的视频时，**必须同时满足以下 6 条**，否则极易出现乱码字幕、变脸、截断或嘴型穿帮：
+
+1. **显式禁字幕、禁衣服印字、禁水印**：AI 听到有人说话极易在底部硬烧乱码字幕或在衣服/墙面印字；提示词必须明确禁止文字、字幕、水印、Logo。
+2. **锁死机位与景别**：明确写「真实手机拍摄质感、竖屏 9:16、固定机位、中景（胸/腰以上入镜）、不要切镜头、不要剧烈推拉、自然光、生活化不要摆拍感」。
+3. **台词严格控字数 + 注明「只说一遍」**：5s 控制 `22–28 字`，8s 控制 `40–45 字`，10s 控制 `52–58 字`；台词用引号完整包裹，且注明**一字不改、只说一遍、说完保持看镜头自然点头微笑**。
+4. **动作绑在具体台词上（拒绝木头人念稿）**：把 2–3 个小手势/道具互动绑到关键句上（如说到“压箱底”时抖一抖手里旧外套，说到“别扔”时轻轻摆手，说到“打包好”时拍一拍编织袋）。
+5. **声音只留干声 + 真实环境音，严禁 BGM**：有声口播写「自然居家/仓库环境音，清晰人声，无背景音乐」；**无声开场镜头绝不写台词，且让人物专注整理/拉拉链/打包动作、不张嘴说话**（避免后期配 `Edge-TTS` 嘴型穿帮）。
+6. **台词先过合规硬红线**：提交生成前先自检台词 0 出现 `顺丰 / 京东 / 秒到账 / 即时到账 / 当场结算 / 微信搜 / 看主页 / 点头像 / 关注 / 评论区扣 / 私信`。
+
+---
+
+## 三、即梦 CLI（`dreamina`）—— 国内直连全自动生视频
 
 **严格 Opt-in**：仅当成员明确要求「用即梦生视频 / 做条即梦片」时调用。
 
@@ -14,22 +54,28 @@
 3. **不硬编码模型**：如成员指定特定模型，提交前先跑 `dreamina <subcommand> -h` 核对当前支持的参数组合（`model_version`、`duration`、`ratio`、`video_resolution`）；
 4. **严禁静默重复提交**：统一通过 `scripts/dreamina_runner.py submit` 提交，脚本会把 `submit_id` 持久化到 `<task-dir>/dreamina_task.json`；超时或网络波动时只能用 `query` 续查旧 `submit_id`，绝不重发新任务扣双份积分。
 
-### 2. 两种出片档位（推荐优先用「省积分混剪」）
-- **档位 A：省积分混剪（推荐）**：
-  - 用 `dreamina_runner.py submit --mode text2video --duration 5 --ratio 9:16 --video-resolution 720p --poll 60 --auto-download` 生成 1 段 **4–5 秒高吸睛开场镜头**（提示词强调写实中国居家场景、9:16 竖屏、无文字无水印）；
-  - 再调用 `python3 scripts/media_manager.py footage --count 2` 从本机 `local_footage_dirs` 抽取 2 段未用过的真实实拍视频/图片；
-  - 用 `scripts/package_ai_video.py --job job.json --out-dir outputs --organize-by-date`（`mode: "montage"` + `Edge-TTS` 干声旁白）一键合成 15–20 秒高留存成片。
-- **档位 B：纯即梦全片**：
-  - 直接生成 8–10 秒完整镜头（可按需用 `image2video` / `frames2video` / `multimodal2video`），下载后走 `package_ai_video.py`（`mode: "native_audio"` 或 `montage`）叠加顶标、防孤字大字幕、双封面与 8 帧质检图。
+### 2. 即梦高成片率中文提示词模板（全程用自然中文）
 
-### 3. 常见报错处理
+- **模板 A：即梦真人口播镜头（8s / 10s，纯即梦或单镜口播）**：
+  > 真实手机拍摄质感，竖屏 9:16，固定机位，中景，不要切镜头，自然光，生活化不摆拍。`{场景与道具描述}`。`{人物年龄性别穿着，强调衣服上不要有任何文字图案}`，面向镜头说话，语气真诚自然、语速适中；说到“`{关键句1}`”时`{动作1}`，说到“`{关键句2}`”时`{动作2}`。
+  > 台词（普通话）：“`{合规中文台词，严格按 5s=22-28字 / 8s=40-45字 / 10s=52-58字}`”
+  > 台词一字不改，只说一遍，说完保持看镜头自然点头微笑。声音：自然`{居家/户外/仓库}`环境音，清晰人声，无背景音乐。画面中不要出现任何文字、字幕、水印和 logo。
+- **进阶稳脸技巧（图生视频）**：对人物长相/服装一致性要求高时，先用 `dreamina text2image --ratio=9:16` 生成无文字首帧图，再用 `dreamina_runner.py submit --mode image2video --image <首帧图>`，提示词开头加上 `保持首帧画面的人物、服装和场景完全不变，固定机位，不要切镜头`。
+- **模板 B：即梦省积分无声开场镜头（4–5s，供混剪用）**：
+  > 真实手机拍摄质感，竖屏 9:16，固定中景，白天自然光，生活化。`{人物与场景}`正在专注`{打开爆满衣柜拿出一叠旧外套 / 把旧衣旧鞋装进大编织袋 / 整理打包}`，动作利落自然，全程不张嘴说话。无背景音乐，画面中不要出现任何文字、字幕、水印和 logo。
+
+### 3. 两种出片档位与包装
+- **档位 A：省积分混剪（推荐）**：用模板 B 生成 1 段 4–5s 开场镜头 + `media_manager.py footage --count 2` 抽 2 段未用本地实拍 + `package_ai_video.py`（`mode: "montage"` + `Edge-TTS` 干声旁白）。
+- **档位 B：纯即梦全片**：用模板 A 生成 8–10s 原片 + `package_ai_video.py`（`mode: "native_audio"`）叠加顶标、防孤字大字幕、双封面与 8 帧质检图。
+
+### 4. 常见报错处理
 - **`AigcComplianceConfirmationRequired`**：提示成员先在即梦 Web 端使用该模型完成一次合规确认生成，再重试；
 - **`ExceedConcurrencyLimit` (ret `1310`)**：立刻停止继续提交，用 `dreamina list_task` / `query` 跟进排队任务，或在成员预算允许下尝试一次对应 VIP 变体；
 - **排队超过 1 小时**：保存 `submit_id` 汇报进度并结束当前轮次，后续直接用 `dreamina_runner.py query --task-dir <dir> --download` 取片。
 
 ---
 
-## 二、Google Flow（`flow.google.com`）—— `ego-lite` 全自动生视频
+## 四、Google Flow（`flow.google.com`）—— `ego-lite` 全自动生视频
 
 **严格 Opt-in + 强前置 `ego-lite`**：仅当成员明确要求「用 Flow / Omni / Veo 生视频」时调用；开始前必须按 `knowledge/00-auto-setup.md` 第三节确认 `ego-browser` 已安装并输出 `ego-browser ready`。
 
@@ -42,7 +88,14 @@
 
 > 注意：`Veo 3.1 - Fast`、`Veo 3.1 - Quality`、`Omni 1.1 Flash` 已/即将下线，不要选用。
 
-### 2. `ego-browser` 实操防踩坑铁律
+### 2. Google Flow 高成片率提示词模板（英文写画面约束 + 中文引号写台词）
+
+- **模板 A：Omni 1.2 Flash 原生中文口播（8s / 10s）**：
+  > `9:16 vertical smartphone UGC shot, fixed camera, medium shot, no camera cuts, realistic Chinese {home bedroom / entryway / living room / clean sorting room} background, soft natural daylight, candid everyday look. A friendly Chinese {woman/man in their early 30s} wearing plain casual clothes with no text or logos, {holding an old jacket / standing beside an overflowing wardrobe and woven bag}, making natural hand gestures while speaking directly to camera in clear, natural-paced Mandarin Chinese (say the lines once, then smile and nod naturally): "{合规中文台词：8s=40-45字 / 10s=52-58字}". Natural room ambience only, clear voice, no background music. No on-screen text, no subtitles, no captions, no watermarks, no logos.`
+- **模板 B：Veo 3.1 - Lite 无声吸睛开场（8s · 10 点，供混剪用）**：
+  > `9:16 vertical smartphone UGC shot, realistic Chinese {home / entryway / bedroom} scene, natural daylight, smooth handheld realism. A Chinese {person} {opening a packed wardrobe / neatly folding old winter jackets and placing them with old shoes and bags into a large woven bag}, focused and natural movement, mouth closed, not speaking. No on-screen text, no subtitles, no watermarks, no logos.`
+
+### 3. `ego-browser` 实操防踩坑铁律
 - **费用核对底线**：点击 `button[aria-label="开始生成"]` 前，必须先读页面 DOM 核对 `生成将消耗 X 个点数` 与预期一致（`24 / 30 / 10`），异常高价立刻中止并告知成员；完成后务必调用 `task.finish({ keep: [] })` 关闭 TaskSpace。
 - **Omni 1.2 Flash（有声口播）**：
   1. 打开 `button[aria-label="设置"]`，确认 **`button[name="return-silent-videos"]` 为关闭（OFF）**；
@@ -50,8 +103,7 @@
   3. **时长滑块精确点击法**：`input[aria-label="时长"]` 范围 `0..12` 对应 `3s..15s`，**禁止点中心**（会重置到 4s）。先取 boundingBox `(x, y, w, h)`：
      - 目标 **8s**：`x + w * (5 / 12)`
      - 目标 **10s**：`x + w * (7 / 12)`
-     点击后读 DOM 核实 `时长 8 秒 / 24 点`（或 `10 秒 / 30 点`）；
-  4. Prompt 必须附带：`9:16 vertical smartphone UGC shot, realistic Chinese home background, natural daylight. No on-screen text, no subtitles, no watermarks, no logos.` + 引号包裹的完整中文口播台词。
+     点击后读 DOM 核实 `时长 8 秒 / 24 点`（或 `10 秒 / 30 点`）。
 - **Veo 3.1 - Lite（10 点无声开场）**：
   1. 打开设置面板，**务必打开 `button[name="return-silent-videos"]`（ON）**（避免触发「音频生成失败」）；
   2. 选 **`Veo 3.1 - Lite`**、竖屏 `9:16`、默认 8s，核对点数为 **10 点**。
@@ -62,7 +114,7 @@
 
 ---
 
-## 三、0 点纯实拍混剪（`实拍混剪` / `montage`）
+## 五、0 点纯实拍混剪（`实拍混剪` / `montage`）
 
 完全零 AI 点数消耗，适合高频日常出片或配合省点轮换：
 1. 调用 `python3 scripts/media_manager.py footage --count 3` 从本机 `local_footage_dirs` 自动抽取 3 个**未在全局账本用过**的真实实拍视频或图片（静态图片在包装时会自动加上平滑 Ken Burns 轻推镜，绝不呆板）；
@@ -71,7 +123,7 @@
 
 ---
 
-## 四、MotionGit 免费口播模板包装（`口播包装` / `motiongit`）
+## 六、MotionGit 免费口播模板包装（`口播包装` / `motiongit`）
 
 当成员手头已有**真人实拍口播视频**，想做成高质感综艺/杂志/海报风动效口播片时使用（如 MotionGit 官网免费模板「活力海报」「现代编辑」「纸张透视」等）：
 
@@ -85,10 +137,10 @@
 
 ---
 
-## 五、统一交付前质检清单（不可跳过）
+## 七、统一交付前质检清单（不可跳过）
 
 任何轨道出片后，交付前必须查看 `qc-contact.jpg`、`cover-9x16.jpg`、`cover-3x4.jpg`，核验：
-1. 画面无 AI 乱码字幕、无第三方平台水印、无畸形手/脸；
+1. 画面无 AI 乱码字幕、无衣服乱印字、无第三方平台水印、无畸形手/脸；
 2. 顶标与字幕在安全区内、无单字孤行换行、无底部品牌浮条与静态全屏尾卡；
 3. 双封面两行大字居中清晰、无边缘裁切；
 4. 发布文案已标注按平台要求勾选「AI 生成」声明（纯实拍且未用 AI 配音的除外）。
