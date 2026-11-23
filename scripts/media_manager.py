@@ -203,6 +203,45 @@ def fetch_from_pixabay(api_key: str, query: str, count: int, target_dir: Path) -
     return downloaded
 
 
+def fetch_from_jamendo(client_id: str, count: int, target_dir: Path) -> list[Path]:
+    """可选免费 API 扩充：从 Jamendo 拉取 CC 协议免费纯音乐/治愈轻音乐 MP3。"""
+    tags = random.choice(["piano", "ambient", "relaxing", "acoustic", "calm", "chillout"])
+    q = urllib.parse.urlencode({
+        "client_id": client_id,
+        "format": "json",
+        "limit": min(max(count * 4, 10), 25),
+        "fuzzytags": tags,
+        "vocalinstrumental": "instrumental",
+        "audioformat": "mp32",
+        "order": "popularity_total",
+        "offset": random.randint(0, 40),
+    })
+    url = f"https://api.jamendo.com/v3.0/tracks/?{q}"
+    req = urllib.request.Request(url, headers={"User-Agent": "yidehai-video-skill/1.7"})
+    downloaded: list[Path] = []
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        return downloaded
+
+    tracks = data.get("results", [])
+    random.shuffle(tracks)
+    for tr in tracks:
+        if len(downloaded) >= count:
+            break
+        tid = tr.get("id")
+        dl_url = tr.get("audiodownload") or tr.get("audio")
+        if not dl_url or tr.get("audiodownload_allowed") is False:
+            continue
+        dest = target_dir / f"jamendo-{tid}.mp3"
+        if dest.exists() and dest.stat().st_size > 10_000:
+            continue
+        if download_file(dl_url, dest, timeout=45):
+            downloaded.append(dest)
+    return downloaded
+
+
 def ensure_online_media(kind: str, count: int = 2, query: str | None = None, cfg: dict | None = None) -> list[Path]:
     """按需拉取在线免版权素材到本机缓存目录（先 0 配置清单，再可选免费 API）。"""
     cfg = cfg or load_config()
@@ -210,10 +249,16 @@ def ensure_online_media(kind: str, count: int = 2, query: str | None = None, cfg
     target_dir.mkdir(parents=True, exist_ok=True)
 
     got = fetch_from_catalog(kind, count, DEFAULT_CATALOG_PATH, target_dir)
-    if len(got) >= count or kind != "bg_videos":
+    if len(got) >= count:
         return got
 
     remain = count - len(got)
+    if kind == "bgm_tracks":
+        jamendo_id = os.environ.get("JAMENDO_CLIENT_ID") or cfg.get("jamendo_client_id") or ""
+        if jamendo_id and remain > 0:
+            got.extend(fetch_from_jamendo(jamendo_id, remain, target_dir))
+        return got
+
     q = query or random.choice(DEFAULT_SCENIC_QUERIES)
     pexels_key = os.environ.get("PEXELS_API_KEY") or cfg.get("pexels_api_key") or ""
     if pexels_key and remain > 0:
@@ -238,6 +283,7 @@ def main() -> None:
     p_cfg.add_argument("--bg-source", choices=["both", "local", "online"], help="背景来源策略：both(混合) / local / online")
     p_cfg.add_argument("--set-pexels-key", help="保存可选 Pexels 免费 API Key 到本机配置")
     p_cfg.add_argument("--set-pixabay-key", help="保存可选 Pixabay 免费 API Key 到本机配置")
+    p_cfg.add_argument("--set-jamendo-id", help="保存可选 Jamendo 免费音乐 Client ID 到本机配置")
 
     p_fetch = sub.add_parser("fetch", help="按需拉取在线免版权风景空镜或 BGM 到本机缓存")
     p_fetch.add_argument("--kind", choices=["bg_videos", "bgm_tracks"], default="bg_videos")
@@ -268,12 +314,16 @@ def main() -> None:
         if args.set_pixabay_key:
             cfg["pixabay_api_key"] = args.set_pixabay_key.strip()
             changed = True
+        if args.set_jamendo_id:
+            cfg["jamendo_client_id"] = args.set_jamendo_id.strip()
+            changed = True
         if changed:
             save_config(cfg)
 
-        safe_view = {k: v for k, v in cfg.items() if "key" not in k}
+        safe_view = {k: v for k, v in cfg.items() if "key" not in k and "client_id" not in k}
         safe_view["has_pexels_key"] = bool(cfg.get("pexels_api_key"))
         safe_view["has_pixabay_key"] = bool(cfg.get("pixabay_api_key"))
+        safe_view["has_jamendo_id"] = bool(cfg.get("jamendo_client_id"))
         safe_view["config_path"] = str(CONFIG_PATH)
         print(json.dumps(safe_view, ensure_ascii=False, indent=2))
 

@@ -4,7 +4,7 @@ description: >-
   亿德海（yidehai）团队短视频创作与出片助手（面向非技术成员）。内置品牌合规红线、真实业务规则（提炼自客服知识库）、爆款写稿方法论（第零步切角、线索获客4.0、感觉词）、大字报与动效视觉规范，并支持首次使用自动检测与安装 OpenMotion 等本地视频依赖，无需同事额外手动装软件。
   内置 OpenMotion 渲染组件离线补齐、原生影片工程 lint、前台同步渲染与成片抽帧质检实战手册，解决「装好了却导不出 MP4」。
   当团队成员说“帮我做一条旧衣回收视频”、“做一条大字报视频”、“写个旧鞋/旧羽绒服/大扫除短视频脚本”、“用 OpenMotion 生成亿德海视频”、“初始化/安装视频环境”或需要 6 平台发布文案与封面字时，自动按本 Skill 执行，无需反复交代项目背景。
-version: "1.6.0"
+version: "1.7.0"
 ---
 
 # 亿德海团队短视频创作与出片 Skill
@@ -59,18 +59,25 @@ version: "1.6.0"
 ### Step 4：非阻塞自动出片（大字报直出 / 动效片走 OpenMotion）
 成员说“定稿，出片”后，按视频类型自动分流执行（**硬原则：绝不让安装环境阻塞出片，严禁反复 `git clone` 源码仓库，也严禁临场手写粗糙脚本硬拼低质视频**）：
 
-- **路径 P：大字报视频离线一键直出（9 秒出片 · 无需 OpenMotion · 本机记忆目录 + 在线按需拉取 + 4 层防重）**
-  1. **首次记忆本机素材目录（只问一次，永久复用）**：
+- **路径 P：大字报视频离线一键直出（9 秒出片 · 无需 OpenMotion · 本地可选 + 在线引导配置 + 无声版可选 + 4 层防重）**
+  1. **检查本机配置（首次温和引导，绝不强迫，之后永久复用）**：
      - 先运行 `python3 scripts/media_manager.py config --show` 检查 `~/.yidehai-video/config.json`。
-     - 若 `local_bg_dirs` 为空且本次未问过，简短问一句同事：“你电脑里有没有本地视频素材/轻音乐文件夹？发我路径一次我帮你记住，以后直接复用；没有的话直接说‘没有’，我会优先用在线空镜与内置背景音。”
-     - 同事提供路径后，执行 `python3 scripts/media_manager.py config --add-bg-dir "<路径>"`（以及 `--add-bgm-dir`）写入本机配置，**以后再也不反复追问**。
-  2. **一键离线渲染（自动混合本地目录 + 在线按需缓存 + 全局防重账本）**：
+     - **本地素材目录完全可选**：如果 `local_bg_dirs` 为空，顺口提一句“有本地视频/音乐文件夹可以发路径给我记住，没有也没关系，跳过就行”。
+     - **在线免费素材 Key 对话式配置**：如果 `has_pexels_key` 和 `has_pixabay_key` 都为 `false`（且同事想用在线高清风景空镜），在对话框里给出简洁引导：
+       - 视频空镜（二选一或都配，永久免费）：Pexels `https://www.pexels.com/api/` 、Pixabay `https://pixabay.com/api/docs/`
+       - 无版权纯音乐（可选，永久免费）：Jamendo `https://developer.jamendo.com/`（不配也可放本地音乐、用内置治愈和弦，或直接出无声版）
+       - 告诉同事：**“去上面注册拿到 Key 后直接贴在对话框里就行，我帮你自动配到本机（不上传网络），以后永久自动拉新空镜。”**
+     - 同事在对话框提供路径或 Key 后，立刻调用 `media_manager.py config --add-bg-dir / --add-bgm-dir / --set-pexels-key / --set-pixabay-key / --set-jamendo-id` 自动保存（**回复中严禁复述密钥明文**）。
+  2. **音频模式明确可选（带音乐 vs 无声版）**：
+     - 出片前确认或按成员指令选择：**带背景音乐（默认）** 或 **无声版**（成员指定“无声版 / 不加音乐”时，命令必须加 `--silent`，方便在抖音/小红书发片时挂载平台热门轻音乐）。
+  3. **一键离线渲染（自动混合本地目录 + 在线按需缓存 + 全局防重账本）**：
      ```sh
-     python3 scripts/render_poster.py --job job.json --out-dir <输出目录>
+     python3 scripts/render_poster.py --job job.json --out-dir <输出目录>          # 带背景音乐
+     python3 scripts/render_poster.py --job job.json --out-dir <输出目录> --silent # 无声版
      ```
-     - 自动读取本机 `~/.yidehai-video/config.json` 记住的本地目录与 `~/.yidehai-video/cache/` 在线缓存（本地与在线按 `bg_source=both` 混合轮换；在线缓存不足时自动按需从 `knowledge/media-catalog.json` 0 配置直链或已配的免费 Pexels/Pixabay API 拉取到本机缓存，**不占用 Skill 仓库体积**）。
-     - 自动完成：① 文案查重；② 8.8 秒背景时间窗防重并写入全局 `~/.yidehai-video/used_history.json`；③ BGM 池轮换（无 BGM 时自动叠加柔和治愈和弦，加 `--silent` 可出无声版）；④ 随机视觉指纹微调与元数据去重；⑤ 10 秒内输出满屏大字 `1080×1920` 30fps 成片 MP4 + `9:16` 封面 + `3:4` 小红书封面。
-  3. **交付前抽检**：用图片查看工具检查 `cover-9x16.jpg` 与 `cover-3x4.jpg`，确认无孤字换行、文字清晰、无裁切。
+     - 自动读取本机 `~/.yidehai-video/config.json` 记住的本地目录（如有）与 `~/.yidehai-video/cache/` 在线缓存，按 `bg_source=both` 混合轮换；在线缓存不足时自动按需从 `knowledge/media-catalog.json` 或已配的 Pexels / Pixabay / Jamendo 免费 API 拉取到本机缓存，**不占用 Skill 仓库体积**。
+     - 自动完成：① 文案查重；② 8.8 秒背景时间窗防重并写入全局 `~/.yidehai-video/used_history.json`；③ BGM 池轮换（无 BGM 且未选 `--silent` 时自动叠加柔和治愈和弦）；④ 随机视觉指纹微调与元数据去重；⑤ 10 秒内输出满屏大字 `1080×1920` 30fps 成片 MP4 + `9:16` 封面 + `3:4` 小红书封面。
+  4. **交付前抽检**：用图片查看工具检查 `cover-9x16.jpg` 与 `cover-3x4.jpg`，确认无孤字换行、文字清晰、无裁切。
 
 - **路径 A：OpenMotion 最新稳定版自动出片（多屏创意动效片首选）**
   1. **非阻塞检测与一键安装**：先检查当前环境是否已安装/连接 `OpenMotion`。若未安装，按 `knowledge/00-auto-setup.md` **直接走官方预构建 npm 最新稳定版 `@openmotion/app@latest` + 国内镜像（`npm_config_registry=https://registry.npmmirror.com`）+ `--host workbuddy` 一键安装**（不写死旧版本号、无需克隆源码或本地构建，最多尝试 1 次）。
