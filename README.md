@@ -1,4 +1,4 @@
-# 亿德海团队短视频创作 Skill（`yidehai-team-video-skill`）
+# 亿德海团队短视频创作 Skill（`yidehai-video-skill`）
 
 面向项目组非技术成员的极简短视频创作 Skill：内置亿德海合规红线、真实业务规则、爆款写稿方法论与视觉规范，装进 **WorkBuddy**（或兼容 `SKILL.md` 的 AI 工具）即可直接对话出稿、联动 **OpenMotion** 等工具快速出片，无需每次反复交代项目背景。
 
@@ -19,7 +19,7 @@
 ## 二、目录结构
 
 ```text
-yidehai-team-video-skill/
+yidehai-video-skill/
 ├── SKILL.md                    # 核心工作流与自检规则（v1.1.0）
 ├── README.md                   # 本使用与更新说明
 └── knowledge/
@@ -35,12 +35,12 @@ yidehai-team-video-skill/
 
 ## 三、线上安装与团队一键更新
 
-线上公开仓库：`https://github.com/yidehai-tech/yidehai-team-video-skill`
+线上公开仓库：`https://github.com/yidehai-tech/yidehai-video-skill`
 
 - **同事首次安装**：
-  - 在 WorkBuddy 中直接发一句：`请从 https://github.com/yidehai-tech/yidehai-team-video-skill 安装 yidehai-team-video-skill`
-  - 或在支持 `skills` CLI 的环境中执行：`npx skills add yidehai-tech/yidehai-team-video-skill`
+  - 在 WorkBuddy 中直接发一句：`请从 https://github.com/yidehai-tech/yidehai-video-skill 安装 yidehai-video-skill`
+  - 或在支持 `skills` CLI 的环境中执行：`npx skills add yidehai-tech/yidehai-video-skill`
 - **同事一键更新**：
-  - 群里通知更新后，在 WorkBuddy 中直接说：`帮我更新一下 yidehai-team-video-skill`（或重新运行安装命令覆盖更新）。
+  - 群里通知更新后，在 WorkBuddy 中直接说：`帮我更新一下 yidehai-video-skill`（或重新运行安装命令覆盖更新）。
 - **管理员维护知识库**：
   - 修改 `knowledge/` 中对应的 Markdown 文件，递增 `SKILL.md` 中的 `version`，执行 `git commit && git push` 即可全员可拉取。
