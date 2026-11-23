@@ -21,15 +21,18 @@
 
 ```text
 yidehai-video-skill/
-├── SKILL.md                    # 核心工作流与自检规则（v1.1.0）
-├── README.md                   # 本使用与更新说明
-└── knowledge/
-    ├── 00-auto-setup.md        # 自动环境检测与 OpenMotion / 配音依赖一键安装手册
-    ├── 01-brand-rules.md       # 短视频合规硬红线 + 方案A收尾规范（最高优先级）
-    ├── 02-business-faq.md      # 真实业务规则（起收标准/品类/流程，对外脱敏版）
-    ├── 03-copy-formula.md      # 写稿方法论（第零步切角/获客4.0/感觉词/字数）
-    ├── 04-visual-style.md      # 竖屏视觉规范 + OpenMotion 动效与双封面约束
-    └── 05-good-examples.md     # 5 条已验证的过审样本
+├── SKILL.md                     # 核心工作流与自检规则
+├── README.md                    # 本使用与更新说明
+├── knowledge/
+│   ├── 00-auto-setup.md         # 自动环境检测与 OpenMotion / 配音依赖一键安装手册
+│   ├── 01-brand-rules.md        # 短视频合规硬红线 + 方案A收尾规范（最高优先级）
+│   ├── 02-business-faq.md       # 真实业务规则（起收标准/品类/流程，对外脱敏版）
+│   ├── 03-copy-formula.md       # 写稿方法论（第零步切角/获客4.0/感觉词/字数）
+│   ├── 04-visual-style.md       # 竖屏视觉规范 + OpenMotion 动效、大字报模板与双封面约束
+│   ├── 05-good-examples.md      # 已验证的过审样本
+│   └── 06-rendering-playbook.md # 「装好了却导不出 MP4」：组件离线补齐 / lint / 同步渲染 / 抽帧质检
+└── scripts/
+    └── fetch_om_components.py   # Agent 专用：按 runtime-lock 走镜像+分段下载并 sha256 校验组件
 ```
 
 ---
@@ -45,3 +48,18 @@ yidehai-video-skill/
   - 群里通知更新后，在 WorkBuddy 中直接说：`帮我更新一下 yidehai-video-skill`——系统会自动同步**最新业务知识库**，并顺手把 **OpenMotion 及已装相关插件升级到最新稳定版**。
 - **管理员维护知识库**：
   - 修改 `knowledge/` 中对应的 Markdown 文件，递增 `SKILL.md` 中的 `version`，执行 `git commit && git push` 即可全员可拉取。
+  - 新增知识文件时，记得同步登记到 `SKILL.md` 第一节的知识库优先级清单与上面的目录结构。
+
+---
+
+## 四、出片卡住了？先看这份
+
+| 现象 | 去哪查 |
+|---|---|
+| OpenMotion 装好了但导不出 MP4、组件一直「下载中」 | `knowledge/06-rendering-playbook.md` 第一、二节 |
+| `EXPORT_WORKER_INTERRUPTED`、渲染没反应 | 同上，第三节（改用前台同步渲染） |
+| lint 报中文字体 / 顶层 clip 错误 | 同上，第三节 3.2 |
+| 成片文字乱码、结尾出现全屏尾卡、封面字被挤 | 同上，第四节抽帧质检清单 |
+| 安装失败后的正确兜底姿势 | `knowledge/00-auto-setup.md` 第三节 |
+
+非技术同事不用自己查——直接把现象告诉 WorkBuddy，Agent 会按手册自动处理。

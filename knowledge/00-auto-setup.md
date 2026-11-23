@@ -39,6 +39,7 @@
   ```
 
 安装完成后：
+- **必做：导出能力自检（安装成功 ≠ 能导出）**：按 `knowledge/06-rendering-playbook.md` 第一节确认 `browser` / `media` 都是 `ready` 且 `capabilities.export === true`。未就绪时走该手册第二节离线补齐（国内镜像 + sha256 缓存注入，Agent 可跑 `scripts/fetch_om_components.py`）；**状态文件只是快照，先查下载进程是否还活着，别把"进程已死"当成"网速慢"而空等**。
 - 按输出完成本地 Studio 启动与 MCP 连接，后续会话直接复用，无需重装。
 - 若本机已装浏览器（如 `ego-lite` / Chrome / Edge），优先复用已有浏览器，不强求额外下载 Chrome。
 
@@ -62,6 +63,7 @@
 2. **失败立刻降级继续干活**：若因网络/权限/Node 版本安装失败，**不要临场手写粗糙 HTML 拼低质视频**，而是：
    - 用 1 句大白话说明原因（例如“当前网络/Node 环境暂未装上 OpenMotion，先不耽误你出片”）；
    - 立刻交付可直接复制进剪映/即梦的「逐屏大字/字幕清单 + 封面双行大字 + 纯净配音文本 + 6 平台发布文案」，确保同事当场就能完成任务。
+3. **质量红线（来自真实反馈）**：曾有降级版用简单几何图形渲染出 MP4，同事评价「效果太差」。**不要把简陋本地渲染包装成「成片」交付**；若确需本地渲染，先确认对方接受图形动效风，或明确标注为占位预览片并说明后续用引擎重做。详见 `knowledge/06-rendering-playbook.md` 第五节。
 
 ---
 
@@ -75,7 +77,7 @@
    - 使用国内镜像执行：
      - macOS / Linux：`npm_config_registry=https://registry.npmmirror.com npm_config_fetch_retries=0 npx --yes @openmotion/app@latest setup --host workbuddy`（按当前宿主自动替换 `--host`）；
      - Windows (PowerShell)：`$env:npm_config_registry="https://registry.npmmirror.com"; $env:npm_config_fetch_retries="0"; npx --yes @openmotion/app@latest setup --host workbuddy`。
-   - 若本机已是最新版，快速跳过；若升级成功，自动保持现有项目与配置不丢失。
+   - 若本机已是最新版，**直接跳过，不要为「升级」重跑 setup**——重装可能覆盖已手动补齐的 native 组件，导致 `capabilities.export` 再次不可用；若升级成功，自动保持现有项目与配置不丢失，并按第一节补做一次导出能力自检。
 3. **联动升级已装的可选插件**：
    - 若本机已安装 `edge-tts`，顺手走清华镜像升级到最新：`python3 -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -U edge-tts`（未装过则跳过，不强行安装）。
 4. **简明汇报结果**：用 2–3 行告诉同事：① Skill 已更新到的版本号；② OpenMotion 等依赖是否已是最新（若有失败项一句带过，不影响继续出片）。
