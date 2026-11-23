@@ -69,25 +69,37 @@ def download_file(url: str, dest: Path, timeout: int = 30) -> bool:
     if dest.exists() and dest.stat().st_size > 10_000:
         return True
     tmp = dest.with_suffix(dest.suffix + ".part")
-    req = urllib.request.Request(
-        url,
-        headers={"User-Agent": "Mozilla/5.0 (yidehai-video-skill/1.6)"},
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp, open(tmp, "wb") as f:
-            while True:
-                chunk = resp.read(65536)
-                if not chunk:
-                    break
-                f.write(chunk)
-        if tmp.stat().st_size < 10_000:
+
+    # 对 GitHub Release 直链自动提供国内镜像兜底，避免国内同事无代理超时
+    urls_to_try = [url]
+    if url.startswith("https://github.com/"):
+        urls_to_try = [
+            f"https://gh-proxy.com/{url}",
+            f"https://ghfast.top/{url}",
+            url,
+        ]
+
+    for candidate_url in urls_to_try:
+        req = urllib.request.Request(
+            candidate_url,
+            headers={"User-Agent": "Mozilla/5.0 (yidehai-video-skill/2.1)"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp, open(tmp, "wb") as f:
+                while True:
+                    chunk = resp.read(65536)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+            if tmp.stat().st_size < 10_000:
+                tmp.unlink(missing_ok=True)
+                continue
+            tmp.replace(dest)
+            return True
+        except Exception:
             tmp.unlink(missing_ok=True)
-            return False
-        tmp.replace(dest)
-        return True
-    except Exception:
-        tmp.unlink(missing_ok=True)
-        return False
+            continue
+    return False
 
 
 def fetch_from_catalog(kind: str, count: int, catalog_path: Path, target_dir: Path) -> list[Path]:

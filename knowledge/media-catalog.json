@@ -1,5 +1,36 @@
 {
-  "_comment": "0 配置在线免版权风景空镜与治愈轻音乐直链清单（仓库只存 URL，不存二进制大文件；使用时由 scripts/media_manager.py 按需下载到同事本机 ~/.yidehai-video/cache/ 并自动防重）。管理员可随时往 bg_videos / bgm_tracks 追加经核验的 CC0/团队共享直链。",
+  "_comment": "0 配置在线免版权风景空镜与亿德海专属 AI 治愈轻音乐直链清单（仓库只存 URL，不存二进制大文件；使用时由 scripts/media_manager.py 自动经国内镜像兜底按需下载到同事本机 ~/.yidehai-video/cache/ 并全局防重）。",
   "bg_videos": [],
-  "bgm_tracks": []
+  "bgm_tracks": [
+    {
+      "id": "lyria-01-sunset-piano",
+      "mood": "落日抒情钢琴+轻吉他",
+      "duration_sec": 172,
+      "url": "https://github.com/yidehai-tech/yidehai-video-skill/releases/download/bgm-pack-v1/01-sunset-piano.mp3"
+    },
+    {
+      "id": "lyria-02-morning-breeze-strings",
+      "mood": "清晨微风弦乐+毛毡钢琴",
+      "duration_sec": 156,
+      "url": "https://github.com/yidehai-tech/yidehai-video-skill/releases/download/bgm-pack-v1/02-morning-breeze-strings.mp3"
+    },
+    {
+      "id": "lyria-03-cozy-home-lofi",
+      "mood": "居家收纳Lo-fi轻电钢",
+      "duration_sec": 173,
+      "url": "https://github.com/yidehai-tech/yidehai-video-skill/releases/download/bgm-pack-v1/03-cozy-home-lofi.mp3"
+    },
+    {
+      "id": "lyria-04-acoustic-lifestyle",
+      "mood": "清脆木吉他+干货节奏",
+      "duration_sec": 146,
+      "url": "https://github.com/yidehai-tech/yidehai-video-skill/releases/download/bgm-pack-v1/04-acoustic-lifestyle.mp3"
+    },
+    {
+      "id": "lyria-05-autumn-felt-piano",
+      "mood": "秋冬温暖毛毡钢琴独奏",
+      "duration_sec": 157,
+      "url": "https://github.com/yidehai-tech/yidehai-video-skill/releases/download/bgm-pack-v1/05-autumn-felt-piano.mp3"
+    }
+  ]
 }
