@@ -24,6 +24,7 @@ SKILL_ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPTS_DIR))
 import media_manager
+import motion_templates
 import render_poster
 
 TYPE_ALIASES = {
@@ -127,94 +128,9 @@ def detect_openmotion_runtime() -> dict | None:
     return None
 
 
-def build_motion_html_project(item: dict, proj_dir: Path) -> None:
-    """生成符合 OpenMotion/HyperFrames lint 规范的多屏动效片 HTML 工程（0 错误 / 0 警告）。"""
-    proj_dir.mkdir(parents=True, exist_ok=True)
-    comp_dir = proj_dir / "compositions"
-    comp_dir.mkdir(exist_ok=True)
-
-    title = html.escape(str(item.get("title", "")).replace("\n", " "))
-    raw_body = item.get("body", [])
-    lines = raw_body if isinstance(raw_body, list) else [l.strip() for l in str(raw_body).splitlines() if l.strip()]
-    question = html.escape(str(item.get("question", "")))
-    pill = html.escape(str(item.get("pill", "亿德海 · 专人免费上门回收")))
-    duration = float(item.get("duration", 10.0))
-
-    # 拆成 3 屏核心文案
-    n = max(1, len(lines))
-    s1 = html.escape("\n".join(lines[: max(1, n // 3)]))
-    s2 = html.escape("\n".join(lines[max(1, n // 3): max(2, 2 * n // 3)]))
-    s3 = html.escape("\n".join(lines[max(2, 2 * n // 3):]) or question)
-
-    index_html = f"""<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8" />
-  <title>{title}</title>
-  <style>
-    @font-face {{
-      font-family: "YidehaiSans";
-      src: local("PingFang SC"), local("Microsoft YaHei"), local("Hiragino Sans GB"), local("SimHei");
-      font-weight: 400 900;
-    }}
-    html, body {{ margin: 0; padding: 0; width: 1080px; height: 1920px; overflow: hidden; background: #102A22; font-family: "YidehaiSans", sans-serif; }}
-  </style>
-</head>
-<body>
-  <div id="root" data-composition-id="root" data-width="1080" data-height="1920" data-fps="30" data-duration="{duration:.2f}">
-    <div data-track="main" data-start="0" data-duration="{duration:.2f}" data-composition-src="compositions/film.html"></div>
-  </div>
-</body>
-</html>
-"""
-    film_html = f"""<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8" />
-  <style>
-    @font-face {{
-      font-family: "YidehaiSans";
-      src: local("PingFang SC"), local("Microsoft YaHei"), local("Hiragino Sans GB"), local("SimHei");
-      font-weight: 400 900;
-    }}
-    * {{ box-sizing: border-box; }}
-    html, body {{ margin: 0; padding: 0; width: 1080px; height: 1920px; overflow: hidden; font-family: "YidehaiSans", sans-serif; color: #FFFFFF; background: radial-gradient(circle at 50% 28%, #1C4A3B 0%, #0D221B 75%); }}
-    .stage {{ position: relative; width: 1080px; height: 1920px; padding: 200px 72px 260px; display: flex; flex-direction: column; justify-content: space-between; align-items: center; text-align: center; }}
-    .top-title {{ font-size: 76px; font-weight: 900; line-height: 1.2; color: #FFD43B; text-shadow: 0 6px 20px rgba(0,0,0,0.45); }}
-    .card-box {{ position: relative; width: 100%; height: 860px; display: flex; align-items: center; justify-content: center; }}
-    .slide {{ position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 48px; border-radius: 36px; background: rgba(255,255,255,0.08); border: 2px solid rgba(255,212,59,0.28); font-size: 62px; font-weight: 800; line-height: 1.45; white-space: pre-line; opacity: 0; transform: translateY(36px) scale(0.96); }}
-    .question {{ font-size: 46px; font-weight: 700; color: #FFD43B; opacity: 0; }}
-    .pill {{ padding: 20px 50px; border-radius: 999px; background: rgba(0,0,0,0.58); border: 2px solid rgba(255,212,59,0.55); font-size: 38px; font-weight: 700; color: #FFFFFF; opacity: 0; transform: translateY(20px); }}
-  </style>
-</head>
-<body>
-  <div class="stage" data-composition-id="film" data-width="1080" data-height="1920" data-fps="30" data-duration="{duration:.2f}">
-    <div class="top-title">{title}</div>
-    <div class="card-box">
-      <div class="slide s1">{s1}</div>
-      <div class="slide s2">{s2}</div>
-      <div class="slide s3">{s3}</div>
-    </div>
-    <div class="question">{question}</div>
-    <div class="pill">{pill}</div>
-  </div>
-  <script>
-    const tl = gsap.timeline({{ paused: true }});
-    tl.to(".s1", {{ opacity: 1, y: 0, scale: 1, duration: 0.35, ease: "power2.out" }}, 0.05)
-      .to(".s1", {{ opacity: 0, y: -24, duration: 0.3 }}, 3.2)
-      .to(".s2", {{ opacity: 1, y: 0, scale: 1, duration: 0.35, ease: "power2.out" }}, 3.35)
-      .to(".s2", {{ opacity: 0, y: -24, duration: 0.3 }}, 6.4)
-      .to(".s3", {{ opacity: 1, y: 0, scale: 1, duration: 0.35, ease: "power2.out" }}, 6.55)
-      .to(".question", {{ opacity: 1, duration: 0.35 }}, 6.9)
-      .to(".pill", {{ opacity: 1, y: 0, duration: 0.35, ease: "power2.out" }}, {max(0.0, duration - 2.8):.2f});
-    window.__timelines = window.__timelines || {{}};
-    window.__timelines["film"] = tl;
-  </script>
-</body>
-</html>
-"""
-    (proj_dir / "index.html").write_text(index_html, encoding="utf-8")
-    (comp_dir / "film.html").write_text(film_html, encoding="utf-8")
+def build_motion_html_project(item: dict, proj_dir: Path, idx: int = 0) -> str:
+    """调用三套高转化动效片母版（chat 聊天气泡 / checklist 清单打勾 / kinetic 动能大字）生成工程。"""
+    return motion_templates.build_motion_project(item, proj_dir, fallback_index=idx)
 
 
 def run_one_item(
@@ -264,18 +180,20 @@ def run_one_item(
             "bgm": res.get("bgm"),
         }
 
-    # 动效片（motion）：走 OpenMotion / HyperFrames 前台同步渲染
+    # 动效片（motion）：走三套高转化母版轮换 + OpenMotion / HyperFrames 前台同步渲染
     proj_dir = item_dir / "motion-project"
-    build_motion_html_project(item, proj_dir)
+    style_idx = int(re.sub(r"\D", "", item_id) or "0")
+    chosen_style = build_motion_html_project(item, proj_dir, idx=style_idx)
     if om_runtime is None:
         return {
             "id": item_id,
             "type": "motion",
             "type_zh": TYPE_DISPLAY["motion"],
+            "motion_style": chosen_style,
             "title": item.get("title", ""),
             "status": "pending_motion_engine",
             "project_dir": str(proj_dir),
-            "note": "本机 OpenMotion 导出组件尚未就绪，已保存规范动效工程；补齐组件后重跑本命令即可自动断点续渲。",
+            "note": f"已按高转化母版 [{chosen_style}] 生成规范动效工程；本机 OpenMotion 导出组件就绪后重跑本命令即可自动续渲。",
         }
 
     out_mp4 = item_dir / f"{item.get('slug', item_id)}.mp4"
