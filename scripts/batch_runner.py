@@ -24,6 +24,7 @@ SKILL_ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPTS_DIR))
 import media_manager
+import render_poster
 
 TYPE_ALIASES = {
     "大字报": "poster",
@@ -288,6 +289,45 @@ def run_one_item(
     if proc.returncode != 0 or not out_mp4.exists():
         return {"id": item_id, "type": "motion", "type_zh": TYPE_DISPLAY["motion"], "title": item.get("title", ""), "status": "failed", "error": (proc.stderr or proc.stdout).strip()[-400:]}
 
+    # 默认自动给动效片混入防重背景音乐（仅当指定 --silent 时保持无声）
+    bgm_label = "silent"
+    if not item.get("silent", silent_default):
+        cfg = media_manager.load_config()
+        ledger_path = Path(cfg["ledger_path"])
+        ledger = render_poster.load_ledger(ledger_path)
+        duration = float(item.get("duration", 10.0))
+        bgm_dirs = [Path(bgm_dir_override)] if bgm_dir_override else (
+            [Path(d) for d in cfg.get("local_bgm_dirs", [])] + [Path(cfg["cache_bgm_dir"])]
+        )
+        picked_bgm = render_poster.pick_unique_bgm(bgm_dirs, duration, ledger)
+        if picked_bgm is None:
+            media_manager.ensure_online_media("bgm_tracks", count=2, cfg=cfg)
+            picked_bgm = render_poster.pick_unique_bgm([Path(cfg["cache_bgm_dir"])], duration, ledger)
+        tmp_audio = item_dir / "_motion_bgm.wav"
+        if picked_bgm is not None:
+            bgm_src, bgm_start = picked_bgm
+            bgm_label = f"{bgm_src.name}@{bgm_start:.1f}s"
+        else:
+            seed = int(hashlib.sha256(f"{item_id}-{datetime.now().isoformat()}".encode()).hexdigest()[:8], 16)
+            render_poster.generate_gentle_ambient_wav(tmp_audio, duration, seed)
+            bgm_src, bgm_start = tmp_audio, 0.0
+            bgm_label = "builtin-ambient-chord"
+        muxed_mp4 = item_dir / f"{item.get('slug', item_id)}.muxed.mp4"
+        mux_proc = subprocess.run([
+            om_runtime["ffmpeg_path"], "-y", "-v", "error",
+            "-i", str(out_mp4),
+            "-stream_loop", "-1", "-ss", f"{bgm_start:.2f}", "-i", str(bgm_src),
+            "-map", "0:v:0", "-map", "1:a:0",
+            "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-ar", "44100", "-ac", "2",
+            "-af", f"volume=0.80,afade=t=in:st=0:d=0.25,afade=t=out:st={max(0, duration-0.7):.2f}:d=0.7",
+            "-t", f"{duration:.2f}", "-movflags", "+faststart",
+            str(muxed_mp4),
+        ], capture_output=True, text=True)
+        if mux_proc.returncode == 0 and muxed_mp4.exists():
+            muxed_mp4.replace(out_mp4)
+            render_poster.save_ledger(ledger_path, ledger)
+        tmp_audio.unlink(missing_ok=True)
+
     cover_9x16 = item_dir / "cover-9x16.jpg"
     cover_3x4 = item_dir / "cover-3x4.jpg"
     subprocess.run([om_runtime["ffmpeg_path"], "-y", "-v", "error", "-ss", "1.0", "-i", str(out_mp4), "-frames:v", "1", "-q:v", "2", str(cover_9x16)], check=False)
@@ -301,6 +341,7 @@ def run_one_item(
         "title": item.get("title", ""),
         "status": "done",
         "mp4": str(out_mp4),
+        "bgm": bgm_label,
         "cover_9x16": str(cover_9x16) if cover_9x16.exists() else "",
         "cover_3x4": str(cover_3x4) if cover_3x4.exists() else "",
     }
