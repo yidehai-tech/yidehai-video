@@ -233,64 +233,65 @@ def build_overlay_png(
     draw = ImageDraw.Draw(img)
 
     title_segs = [s.strip() for s in title.split("\n") if s.strip()]
-    max_title_w = WIDTH - 76
-    title_size = 98
+    max_title_w = WIDTH - 64   # 左右各留 32px 紧凑边距，铺满屏幕
+    title_size = 114
     title_font = load_font(font_path, font_idx, title_size)
-    while title_size > 68:
+    while title_size > 72:
         title_font = load_font(font_path, font_idx, title_size)
         if all((draw.textbbox((0, 0), s, font=title_font)[2] - draw.textbbox((0, 0), s, font=title_font)[0]) <= max_title_w for s in title_segs):
             break
         title_size -= 2
-    body_font = load_font(font_path, font_idx, 62)
-    q_font = load_font(font_path, font_idx, 48)
-    pill_font = load_font(font_path, font_idx, 40)
 
-    max_body_w = WIDTH - 84
-    max_q_w = WIDTH - 96
+    max_body_w = WIDTH - 72    # 左右各留 36px 边距，让大字铺满屏幕
+    max_q_w = WIDTH - 72
 
+    # 自动最大化正文字号：在安全区高度内尽可能把字放最大（64px ~ 76px）
+    safe_top = 95
+    safe_bottom = 1605
+    title_step = int(title_size * 1.16)
     wrapped_title = []
     for seg in title_segs:
         wrapped_title.extend(wrap_line(draw, seg, title_font, max_title_w))
-
-    wrapped_body = []
-    for seg in body_lines:
-        wrapped_body.extend(wrap_line(draw, seg, body_font, max_body_w))
-
-    wrapped_q = []
-    for seg in question.split("\n"):
-        wrapped_q.extend(wrap_line(draw, seg, q_font, max_q_w))
-
-    # 动态缩字防溢出安全区（正文较多时平滑缩小字号，保持原片大字冲击力）
-    if len(wrapped_body) > 13:
-        body_font = load_font(font_path, font_idx, 56)
-        wrapped_body = []
-        for seg in body_lines:
-            wrapped_body.extend(wrap_line(draw, seg, body_font, max_body_w))
-
-    # 计算垂直布局（紧凑饱满，贴合原片视觉密度）
-    title_step = int(title_size * 1.18)
-    body_step = 78 if len(wrapped_body) <= 13 else 70
-    q_step = 62
-
     title_block_h = len(wrapped_title) * title_step
-    divider_h = 44
+    divider_h = 40
+
+    # 将过短的零碎换行自动合并重排，避免中间空荡荡（保留显式大段感）
+    raw_body_text = "".join(body_lines) if all(len(l) <= 14 for l in body_lines) else "\n".join(body_lines)
+
+    body_size = 76
+    q_size = 54
+    pill_size = 44
+    while body_size >= 56:
+        body_font = load_font(font_path, font_idx, body_size)
+        q_font = load_font(font_path, font_idx, q_size)
+        wrapped_body = []
+        for seg in raw_body_text.split("\n"):
+            wrapped_body.extend(wrap_line(draw, seg, body_font, max_body_w))
+        wrapped_q = []
+        for seg in question.split("\n"):
+            wrapped_q.extend(wrap_line(draw, seg, q_font, max_q_w))
+        body_step = int(body_size * 1.24)
+        q_step = int(q_size * 1.26)
+        total_h = title_block_h + divider_h + len(wrapped_body) * body_step + (24 + len(wrapped_q) * q_step if wrapped_q else 0)
+        if total_h <= (safe_bottom - safe_top):
+            break
+        body_size -= 2
+        q_size = max(46, int(body_size * 0.74))
+
+    pill_font = load_font(font_path, font_idx, pill_size)
     body_block_h = len(wrapped_body) * body_step
     q_block_h = len(wrapped_q) * q_step if wrapped_q else 0
-
-    content_h = title_block_h + divider_h + body_block_h + (26 + q_block_h if q_block_h else 0)
-    # 主内容区位于 y=120..1580 之间居中（给底部胶囊条和平台 UI 留足安全区）
-    safe_top = 125
-    safe_bottom = 1580
+    content_h = title_block_h + divider_h + body_block_h + (24 + q_block_h if q_block_h else 0)
     y = safe_top + max(0, (safe_bottom - safe_top - content_h) // 2)
 
     # ① 顶部大标题
     for line in wrapped_title:
-        draw_outlined_centered_text(img, y, line, title_font, theme["accent"], theme["stroke"], stroke_width=7)
+        draw_outlined_centered_text(img, y, line, title_font, theme["accent"], theme["stroke"], stroke_width=8)
         y += title_step
 
     # 细横线 + 中间圆点分隔符（1:1 复刻实发版式）
-    div_y = y + 12
-    line_half = 210
+    div_y = y + 10
+    line_half = 230
     cx = WIDTH // 2
     d = ImageDraw.Draw(img)
     d.line([(cx - line_half, div_y), (cx - 18, div_y)], fill=theme["accent"], width=3)
@@ -300,26 +301,26 @@ def build_overlay_png(
 
     # ② 中部正文
     for line in wrapped_body:
-        draw_outlined_centered_text(img, y, line, body_font, theme["body"], theme["stroke"], stroke_width=6)
+        draw_outlined_centered_text(img, y, line, body_font, theme["body"], theme["stroke"], stroke_width=7)
         y += body_step
 
     # ③ 底部轻互动问句
     if wrapped_q:
         y += 22
         for line in wrapped_q:
-            draw_outlined_centered_text(img, y, line, q_font, theme["accent"], theme["stroke"], stroke_width=5)
+            draw_outlined_centered_text(img, y, line, q_font, theme["accent"], theme["stroke"], stroke_width=6)
             y += q_step
 
-    # ④ 底部半透明圆角胶囊条（固定位于 y=1620 附近，避开抖音底部文案栏）
+    # ④ 底部半透明圆角胶囊条（固定位于 y=1650 附近，避开抖音底部文案栏）
     if pill.strip():
         pb = d.textbbox((0, 0), pill, font=pill_font)
         pw = pb[2] - pb[0]
         ph = pb[3] - pb[1]
-        pad_x, pad_y = 48, 20
+        pad_x, pad_y = 52, 22
         box_w = pw + pad_x * 2
         box_h = ph + pad_y * 2
-        pill_y = max(y + 36, 1625)
-        pill_y = min(pill_y, 1690)
+        pill_y = max(y + 32, 1650)
+        pill_y = min(pill_y, 1710)
         x0 = (WIDTH - box_w) // 2
         y0 = pill_y
         d.rounded_rectangle(
