@@ -51,6 +51,7 @@ def load_config() -> dict:
     data.setdefault("cache_bg_dir", str(CACHE_BG_DIR))
     data.setdefault("cache_bgm_dir", str(CACHE_BGM_DIR))
     data.setdefault("bg_source", "both")  # both | local | online
+    data.setdefault("onboarding_dismissed", False)
     return data
 
 
@@ -284,6 +285,7 @@ def main() -> None:
     p_cfg.add_argument("--set-pexels-key", help="保存可选 Pexels 免费 API Key 到本机配置")
     p_cfg.add_argument("--set-pixabay-key", help="保存可选 Pixabay 免费 API Key 到本机配置")
     p_cfg.add_argument("--set-jamendo-id", help="保存可选 Jamendo 免费音乐 Client ID 到本机配置")
+    p_cfg.add_argument("--dismiss-onboarding", action="store_true", help="标记用户已明确跳过首次在线 Key 引导，后续不再提醒")
 
     p_fetch = sub.add_parser("fetch", help="按需拉取在线免版权风景空镜或 BGM 到本机缓存")
     p_fetch.add_argument("--kind", choices=["bg_videos", "bgm_tracks"], default="bg_videos")
@@ -316,6 +318,9 @@ def main() -> None:
             changed = True
         if args.set_jamendo_id:
             cfg["jamendo_client_id"] = args.set_jamendo_id.strip()
+            changed = True
+        if args.dismiss_onboarding:
+            cfg["onboarding_dismissed"] = True
             changed = True
         if changed:
             save_config(cfg)

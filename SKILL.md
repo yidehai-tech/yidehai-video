@@ -4,7 +4,7 @@ description: >-
   亿德海（yidehai）团队短视频创作与批量出片助手（面向非技术成员）。统一中文视频形态命名：「大字报」（8.8秒一镜到底满屏大字）与「动效片」（多屏动态视觉，底层自动驱动 OpenMotion），支持单条精做与一次批量出 10–100+ 条（默认各一半，支持自定义配比、断点续跑与审片台）。
   内置品牌合规红线、真实业务规则、爆款写稿方法论、本地素材目录记忆与在线免费空镜/音乐引导配置。
   当团队成员说“帮我做一条旧衣回收视频”、“做一条大字报”、“做一条动效片”、“帮我批量生成 50/100 条视频”、“初始化/更新视频助手”时，自动按本 Skill 执行，无需反复交代项目背景。
-version: "1.9.0"
+version: "1.9.1"
 ---
 
 # 亿德海团队短视频创作与出片 Skill
@@ -69,12 +69,19 @@ version: "1.9.0"
 ### Step 3：自动出片（大字报直出 / 动效片走 OpenMotion）
 写稿双检通过后**直接进入出片**（若成员后续对成品提出“把第二句改短点 / 换个背景”，再微调重渲；**硬原则：绝不让安装环境阻塞出片，严禁反复 `git clone` 源码仓库，也严禁临场手写粗糙脚本硬拼低质视频**）：
 
-- **路径 P：大字报视频离线一键直出（9 秒出片 · 无需 OpenMotion · 全自动配乐 + 4 层防重）**
-  1. **静默读配置（不主动打断）**：
-     - 运行 `python3 scripts/media_manager.py config --show` 检查 `~/.yidehai-video/config.json`。
-     - 若成员在对话中主动贴了本地素材目录或 Pexels/Pixabay/Jamendo 的 Key，立刻调用 `media_manager.py config` 自动保存（**回复中严禁复述密钥明文**）；未提供时**不要弹窗追问**，直接按已有目录/缓存/内置兜底继续出片，仅在交付成片后附 1 句可选提示（如需更多在线免费风景空镜可注册 Pexels `https://www.pexels.com/api/` 或 Pixabay `https://pixabay.com/api/docs/` 把 Key 贴在对话框即可）。
-  2. **音频全自动（严禁弹窗询问）**：
-     - 默认自动配乐（不加 `--silent`）；仅当成员在指令中明确说了「无声版 / 不要背景音乐」时加 `--silent`。
+- **路径 P：大字报视频离线一键直出（9 秒出片 · 无需 OpenMotion · 首次一次性引导配 Key + 4 层防重）**
+  1. **开渲前检查素材与音乐源（首次缺源先一次性引导，配完永久免问，绝不乱找返工）**：
+     - 先运行 `python3 scripts/media_manager.py config --show` 检查 `~/.yidehai-video/config.json`。
+     - 判断是否缺源：
+       - **缺视频源**：`local_bg_dirs` 为空 且 `has_pexels_key` 与 `has_pixabay_key` 均为 `false` 且 `~/.yidehai-video/cache/bg` 为空；
+       - **缺音乐源**（成员未指定无声版时）：`local_bgm_dirs` 为空 且 `has_jamendo_id` 为 `false` 且 `~/.yidehai-video/cache/bgm` 为空。
+     - 若**缺源且 `onboarding_dismissed` 为 `false`**：**先一次性停下来引导用户配置**（不要盲目凑合出片或擅自扫系统目录导致返工）：
+       - 免费竖屏风景空镜 Key（二选一即可）：Pexels `https://www.pexels.com/api/` 、Pixabay `https://pixabay.com/api/docs/`
+       - 免费无版权纯音乐 Client ID：Jamendo `https://developer.jamendo.com/`
+       - 提示用户：**“注册拿到 Key 后直接发在对话框里就行，我帮你自动配到本机（以后永久自动拉新素材，不再重复问）；如果你有自己的本地素材/音乐文件夹也可以直接发路径；不想配的话回复「跳过」我先按默认继续出片。”**
+     - 收到 Key 或本地目录后，立刻调用 `media_manager.py config --set-pexels-key / --set-pixabay-key / --set-jamendo-id / --add-bg-dir / --add-bgm-dir` 自动保存（**严禁在回复中复述密钥明文**），然后立刻继续出片；若用户回复「跳过」，执行 `media_manager.py config --dismiss-onboarding` 后直接继续出片。
+  2. **音频自动执行（不弹窗问“选哪种音乐”）**：
+     - 已配音乐源则自动轮换真轻音乐；仅当成员明确说了「无声版 / 不要背景音乐」时加 `--silent`。
   3. **一键离线渲染（自动按日期归档 + 本地/在线混合 + 全局防重）**：
      ```sh
      python3 scripts/render_poster.py --job job.json --out-dir outputs --organize-by-date          # 自动配真实音乐（无则出干净无声版）
