@@ -26,6 +26,8 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import media_manager
 
+FFMPEG_BIN, FFPROBE_BIN = media_manager.resolve_ffmpeg_tools()
+
 WIDTH = 1080
 HEIGHT = 1920
 
@@ -88,7 +90,7 @@ def load_font(font_path: str, index: int, size: int) -> ImageFont.FreeTypeFont:
 
 def ffprobe_duration(path: str) -> float:
     cmd = [
-        "ffprobe", "-v", "error",
+        FFPROBE_BIN, "-v", "error",
         "-show_entries", "format=duration",
         "-of", "default=noprint_wrappers=1:nokey=1",
         str(path),
@@ -108,8 +110,13 @@ def save_ledger(ledger_path: Path, data: dict) -> None:
     ledger_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def pick_unique_bg_segment(bg_dirs: list[Path], duration: float, ledger: dict) -> tuple[Path, float] | None:
-    """从多个背景素材目录自动挑选未用过的 (文件, 起始秒) 时间窗，确保画面绝不重复。"""
+def pick_unique_bg_segment(
+    bg_dirs: list[Path],
+    duration: float,
+    ledger: dict,
+    exclude_files: set[str] | None = None,
+) -> tuple[Path, float] | None:
+    """从背景素材目录挑选未用过的 (文件, 起始秒)，严格实行「不同视频文件优先」防止同片切窗视觉雷同。"""
     videos: list[Path] = []
     for d in bg_dirs:
         if d.exists():
@@ -121,10 +128,19 @@ def pick_unique_bg_segment(bg_dirs: list[Path], duration: float, ledger: dict) -
         return None
 
     used_keys = set(ledger.get("used_bg_segments", []))
+    used_files = {k.split("@", 1)[0] for k in used_keys}
+    excluded = set(exclude_files or set())
     window_step = math.ceil(duration + 0.5)
-    random.shuffle(videos)
 
-    for v in videos:
+    # 三级优先队列：① 全局从未用过的新文件 → ② 本批未用过但历史用过其他时间窗的文件 → ③ 兜底任意未用时间窗
+    tier1 = [v for v in videos if v.name not in used_files and v.name not in excluded]
+    tier2 = [v for v in videos if v.name in used_files and v.name not in excluded]
+    tier3 = [v for v in videos if v.name in excluded]
+    random.shuffle(tier1)
+    random.shuffle(tier2)
+    random.shuffle(tier3)
+
+    for v in tier1 + tier2 + tier3:
         try:
             vdur = ffprobe_duration(str(v))
         except Exception:
@@ -444,7 +460,7 @@ def render_poster_video(
     scaled_w = int(WIDTH * zoom) // 2 * 2
     scaled_h = int(HEIGHT * zoom) // 2 * 2
 
-    cmd = ["ffmpeg", "-y", "-v", "error"]
+    cmd = [FFMPEG_BIN, "-y", "-v", "error"]
     if bg_video is not None:
         vdur = ffprobe_duration(str(bg_video))
         if vdur < duration + bg_start:
@@ -503,14 +519,14 @@ def export_covers(mp4_path: Path, out_dir: Path) -> tuple[Path, Path]:
     cover_9x16 = out_dir / "cover-9x16.jpg"
     cover_3x4 = out_dir / "cover-3x4.jpg"
     subprocess.check_call([
-        "ffmpeg", "-y", "-v", "error",
+        FFMPEG_BIN, "-y", "-v", "error",
         "-ss", "1.5", "-i", str(mp4_path),
         "-frames:v", "1", "-q:v", "2",
         str(cover_9x16),
     ])
     # 3:4 小红书封面（1080×1440）：居中裁切核心文字区，避免标题/胶囊条被切
     subprocess.check_call([
-        "ffmpeg", "-y", "-v", "error",
+        FFMPEG_BIN, "-y", "-v", "error",
         "-i", str(cover_9x16),
         "-vf", "crop=1080:1440:0:170",
         "-q:v", "2",
@@ -523,6 +539,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="亿德海 8.8 秒一镜到底大字报离线合成工具（带防重账本）")
     parser.add_argument("--job", required=True, help="大字报配置 JSON 路径")
     parser.add_argument("--bg", help="指定单个背景空镜视频路径")
+    parser.add_argument("--bg-start", type=float, default=0.0, help="与 --bg 配合指定背景起始秒")
     parser.add_argument("--bg-dir", help="背景空镜素材池目录（不传则自动读取 ~/.yidehai-video/config.json 记住的目录 + 在线缓存）")
     parser.add_argument("--bg-source", choices=["both", "local", "online"], help="背景来源：both(本地+在线混合) / local / online")
     parser.add_argument("--bgm", help="指定背景音乐文件（支持 mp3/m4a/wav 或带音轨的 mp4）")
@@ -559,7 +576,7 @@ def main() -> None:
 
     # 3. 背景视频与时间窗防重（融合：显式路径 / 本机记住的本地目录 / 按需下载的在线空镜缓存）
     bg_video: Path | None = None
-    bg_start = 0.0
+    bg_start = float(args.bg_start)
     bg_source = args.bg_source or cfg.get("bg_source", "both")
     if args.bg:
         bg_video = Path(args.bg)

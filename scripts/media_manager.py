@@ -12,8 +12,11 @@ import hashlib
 import json
 import os
 import random
+import shutil
 import stat
 import sys
+import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -35,6 +38,44 @@ DEFAULT_SCENIC_QUERIES = [
 
 SKILL_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CATALOG_PATH = SKILL_ROOT / "knowledge" / "media-catalog.json"
+
+
+def resolve_ffmpeg_tools() -> tuple[str, str]:
+    """跨平台自动定位真正的 ffmpeg / ffprobe 可执行文件（Windows 下严禁误选无扩展名 bash shim）。"""
+    is_win = sys.platform.startswith("win")
+    ff_name = "ffmpeg.exe" if is_win else "ffmpeg"
+    fp_name = "ffprobe.exe" if is_win else "ffprobe"
+
+    search_dirs: list[Path] = [APP_DIR / "bin"]
+    om_roots: list[Path] = []
+    if os.environ.get("OPENMOTION_HOME"):
+        om_roots.append(Path(os.environ["OPENMOTION_HOME"]))
+    if os.environ.get("LOCALAPPDATA"):
+        om_roots.append(Path(os.environ["LOCALAPPDATA"]) / "openmotion")
+    om_roots.extend([
+        Path.home() / ".openmotion",
+        Path.home() / "Library" / "Application Support" / "openmotion",
+        Path.home() / ".local" / "share" / "openmotion",
+    ])
+    for root in om_roots:
+        native = root / "cache" / "native"
+        if native.exists():
+            for p in native.rglob(ff_name):
+                if p.is_file():
+                    search_dirs.append(p.parent)
+
+    def _find_one(name: str, bare: str) -> str:
+        for d in search_dirs:
+            cand = d / name
+            if cand.is_file():
+                return str(cand)
+        w = shutil.which(name) or shutil.which(bare)
+        if w:
+            if not is_win or w.lower().endswith(".exe"):
+                return w
+        return name
+
+    return _find_one(ff_name, "ffmpeg"), _find_one(fp_name, "ffprobe")
 
 
 def load_config() -> dict:
@@ -134,7 +175,7 @@ def fetch_from_catalog(kind: str, count: int, catalog_path: Path, target_dir: Pa
 
 
 def fetch_from_pexels(api_key: str, query: str, count: int, target_dir: Path) -> list[Path]:
-    """可选免费 API 扩充：从 Pexels Videos 拉取高清竖屏无版权风景空镜。"""
+    """可选免费 API 扩充：从 Pexels Videos 拉取 720p 竖屏无版权风景空镜（体积小、速度快，带 403 退避重试）。"""
     q = urllib.parse.urlencode({
         "query": query,
         "orientation": "portrait",
@@ -145,13 +186,23 @@ def fetch_from_pexels(api_key: str, query: str, count: int, target_dir: Path) ->
     url = f"https://api.pexels.com/videos/search?{q}"
     req = urllib.request.Request(
         url,
-        headers={"Authorization": api_key, "User-Agent": "yidehai-video-skill/1.6"},
+        headers={"Authorization": api_key, "User-Agent": "yidehai-video-skill/2.2"},
     )
     downloaded: list[Path] = []
-    try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-    except Exception:
+    data = None
+    for attempt in range(2):
+        try:
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            break
+        except urllib.error.HTTPError as e:
+            if e.code == 403 and attempt == 0:
+                time.sleep(20)
+                continue
+            return downloaded
+        except Exception:
+            return downloaded
+    if not data:
         return downloaded
 
     videos = data.get("videos", [])
@@ -162,12 +213,12 @@ def fetch_from_pexels(api_key: str, query: str, count: int, target_dir: Path) ->
         vid = v.get("id")
         files = [
             vf for vf in v.get("video_files", [])
-            if vf.get("file_type") == "video/mp4" and (vf.get("height") or 0) >= 960
+            if vf.get("file_type") == "video/mp4" and (vf.get("height") or 0) >= 720
         ]
         if not files:
             continue
-        # 优先选 1080p 附近体积适中的高清文件
-        files.sort(key=lambda x: abs((x.get("width") or 1080) - 1080))
+        # 优先选 720p 附近体积适中的竖屏文件（约 3-5MB，下载快 3-5 倍，做文字底清晰度足够）
+        files.sort(key=lambda x: abs((x.get("width") or 720) - 720))
         dl_url = files[0].get("link")
         if not dl_url:
             continue
@@ -176,6 +227,8 @@ def fetch_from_pexels(api_key: str, query: str, count: int, target_dir: Path) ->
             continue
         if download_file(dl_url, dest, timeout=45):
             downloaded.append(dest)
+            if len(downloaded) < count:
+                time.sleep(2)
     return downloaded
 
 

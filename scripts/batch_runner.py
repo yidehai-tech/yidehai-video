@@ -140,6 +140,7 @@ def run_one_item(
     silent_default: bool,
     bg_dir_override: str | None,
     bgm_dir_override: str | None,
+    preassigned_bg: tuple[Path, float] | None = None,
 ) -> dict:
     item_id = item["id"]
     norm_type = normalize_type(item.get("type", "大字报"))
@@ -156,7 +157,9 @@ def run_one_item(
             "--out-dir", str(item_dir),
             "--force",
         ]
-        if bg_dir_override:
+        if preassigned_bg is not None:
+            cmd += ["--bg", str(preassigned_bg[0]), "--bg-start", f"{preassigned_bg[1]:.2f}"]
+        elif bg_dir_override:
             cmd += ["--bg-dir", bg_dir_override]
         if bgm_dir_override:
             cmd += ["--bgm-dir", bgm_dir_override]
@@ -323,8 +326,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="亿德海批量短视频工厂（默认 50% 大字报 + 50% 动效片，支持断点续跑）")
     parser.add_argument("--manifest", required=True, help="批量任务 JSON（items 列表，每项可填 type: 大字报 / 动效片）")
     parser.add_argument("--out-dir", required=True, help="本批输出根目录")
-    parser.add_argument("--organize-by-date", action="store_true", help="自动按 YYYY-MM-DD/batch-HHMMSS/ 归档本批输出")
-    parser.add_argument("--workers", type=int, default=2, help="大字报并发渲染线程数（默认 2）")
+    parser.add_argument("--organize-by-date", action="store_true", help="自动按 YYYY-MM-DD/batch-<清单8位哈希>/ 归档（支持同清单断点续跑）")
+    parser.add_argument("--workers", type=int, default=1, help="大字报并发渲染线程数（默认 1 串行最稳；父进程已预分配防重背景）")
     parser.add_argument("--silent", action="store_true", help="整批默认导出无声版")
     parser.add_argument("--bg-dir", help="可选覆盖背景空镜目录")
     parser.add_argument("--bgm-dir", help="可选覆盖 BGM 目录")
@@ -356,9 +359,10 @@ def main() -> None:
         sys.exit(2)
 
     now = datetime.now()
+    manifest_sha8 = hashlib.sha256(Path(args.manifest).read_bytes()).hexdigest()[:8]
     out_root = Path(args.out_dir)
     if args.organize_by_date:
-        out_root = out_root / now.strftime("%Y-%m-%d") / f"batch-{now.strftime('%H%M%S')}"
+        out_root = out_root / now.strftime("%Y-%m-%d") / f"batch-{manifest_sha8}"
     out_root.mkdir(parents=True, exist_ok=True)
     progress_path = out_root / "progress.json"
     progress = json.loads(progress_path.read_text(encoding="utf-8")) if progress_path.exists() else {}
@@ -367,9 +371,14 @@ def main() -> None:
     need_motion = any(normalize_type(it["type"]) == "motion" for it in items)
     om_runtime = detect_openmotion_runtime() if need_motion else None
 
-    # 3. 断点续跑：拆分待跑项（大字报支持并发，动效片顺序渲染稳妥防无头浏览器争抢）
+    # 3. 断点续跑：拆分待跑项
     todo_poster = []
     todo_motion = []
+    batch_used_bg_files: set[str] = set()
+    for prev in progress.values():
+        if prev.get("status") == "done" and prev.get("bg") and "@" in str(prev["bg"]):
+            batch_used_bg_files.add(str(prev["bg"]).split("@", 1)[0])
+
     for it in items:
         prev = progress.get(it["id"])
         if prev and prev.get("status") == "done" and prev.get("mp4") and Path(prev["mp4"]).exists():
@@ -379,10 +388,36 @@ def main() -> None:
         else:
             todo_motion.append(it)
 
+    # 4. 父进程统一为大字报预分配「不同视频文件优先」的不重复背景，彻底消除并发读写账本竞态
+    preassigned_map: dict[str, tuple[Path, float] | None] = {}
     if todo_poster:
+        cfg = media_manager.load_config()
+        ledger_path = Path(cfg["ledger_path"])
+        ledger = render_poster.load_ledger(ledger_path)
+        bg_dirs: list[Path] = []
+        if args.bg_dir:
+            bg_dirs.append(Path(args.bg_dir))
+        else:
+            bg_src = cfg.get("bg_source", "both")
+            if bg_src in ("both", "local"):
+                bg_dirs.extend(Path(d) for d in cfg.get("local_bg_dirs", []))
+            if bg_src in ("both", "online"):
+                bg_dirs.append(Path(cfg["cache_bgm_dir"].replace("/bgm", "/bg")) if False else Path(cfg["cache_bg_dir"]))
+
+        for it in todo_poster:
+            dur = float(it.get("duration", 8.8))
+            picked = render_poster.pick_unique_bg_segment(bg_dirs, dur, ledger, exclude_files=batch_used_bg_files)
+            if picked is not None:
+                batch_used_bg_files.add(picked[0].name)
+            preassigned_map[it["id"]] = picked
+        render_poster.save_ledger(ledger_path, ledger)
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, args.workers)) as ex:
             futs = [
-                ex.submit(run_one_item, it, out_root, None, args.silent, args.bg_dir, args.bgm_dir)
+                ex.submit(
+                    run_one_item, it, out_root, None, args.silent,
+                    args.bg_dir, args.bgm_dir, preassigned_map.get(it["id"]),
+                )
                 for it in todo_poster
             ]
             for fut in concurrent.futures.as_completed(futs):
