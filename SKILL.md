@@ -38,6 +38,7 @@ version: "2.1.0"
 4. **视觉与出片层**：`knowledge/04-visual-style.md` — 竖屏安全区、OpenMotion 动效风格约束、方案 A 轻量品牌浮条与 9:16 / 3:4 双封面规范，以及第五节大字报专项模板。
 5. **风格样本层**：`knowledge/05-good-examples.md` — 已验证的亿德海真实过审脚本，用于对齐语气与节奏。
 6. **渲染与质检层**：`knowledge/06-rendering-playbook.md` — **「安装成功 ≠ 能导出」**：native 组件离线补齐、原生影片工程 lint 硬要求、前台同步渲染、成片抽帧质检清单与降级质量红线。首次出片、组件未就绪、`EXPORT_WORKER_INTERRUPTED` 或任何导出报错时**必读**；配套脚本 `scripts/fetch_om_components.py` 仅由 Agent 在补齐组件时执行。
+7. **大字报批量实战层**：`knowledge/07-poster-batch-field-notes.md` — 调 `batch_runner.py` / `render_poster.py` 批量出大字报时**必读**：Windows 下 ffmpeg/ffprobe PATH 与真 ffprobe.exe 前置、单源视频切时间窗不等于背景多样（必须补不同场景素材源）、`workers=1` 防账本竞态、固定 `--out-dir` 保断点续跑、审片台静态封面造成的"背景像图片"错觉与交付说明。**批量出 10 条以上大字报时先读本文件再动手。**
 
 ---
 
