@@ -13,9 +13,11 @@ import math
 import os
 import random
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
+import wave
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -231,16 +233,20 @@ def build_overlay_png(
     draw = ImageDraw.Draw(img)
 
     title_segs = [s.strip() for s in title.split("\n") if s.strip()]
-    max_title_len = max((len(s) for s in title_segs), default=8)
-    title_size = 82 if max_title_len <= 10 else (72 if max_title_len <= 12 else 64)
+    max_title_w = WIDTH - 76
+    title_size = 98
     title_font = load_font(font_path, font_idx, title_size)
-    body_font = load_font(font_path, font_idx, 52)
-    q_font = load_font(font_path, font_idx, 42)
-    pill_font = load_font(font_path, font_idx, 34)
+    while title_size > 68:
+        title_font = load_font(font_path, font_idx, title_size)
+        if all((draw.textbbox((0, 0), s, font=title_font)[2] - draw.textbbox((0, 0), s, font=title_font)[0]) <= max_title_w for s in title_segs):
+            break
+        title_size -= 2
+    body_font = load_font(font_path, font_idx, 62)
+    q_font = load_font(font_path, font_idx, 48)
+    pill_font = load_font(font_path, font_idx, 40)
 
-    max_title_w = WIDTH - 110
-    max_body_w = WIDTH - 148
-    max_q_w = WIDTH - 150
+    max_body_w = WIDTH - 84
+    max_q_w = WIDTH - 96
 
     wrapped_title = []
     for seg in title_segs:
@@ -254,66 +260,66 @@ def build_overlay_png(
     for seg in question.split("\n"):
         wrapped_q.extend(wrap_line(draw, seg, q_font, max_q_w))
 
-    # 动态缩字防溢出安全区（正文较多时平滑缩小字号）
-    if len(wrapped_body) > 12:
-        body_font = load_font(font_path, font_idx, 46)
+    # 动态缩字防溢出安全区（正文较多时平滑缩小字号，保持原片大字冲击力）
+    if len(wrapped_body) > 13:
+        body_font = load_font(font_path, font_idx, 56)
         wrapped_body = []
         for seg in body_lines:
             wrapped_body.extend(wrap_line(draw, seg, body_font, max_body_w))
 
-    # 计算垂直布局
-    title_step = 104
-    body_step = 74 if len(wrapped_body) <= 12 else 66
-    q_step = 58
+    # 计算垂直布局（紧凑饱满，贴合原片视觉密度）
+    title_step = int(title_size * 1.18)
+    body_step = 78 if len(wrapped_body) <= 13 else 70
+    q_step = 62
 
     title_block_h = len(wrapped_title) * title_step
-    divider_h = 46
+    divider_h = 44
     body_block_h = len(wrapped_body) * body_step
     q_block_h = len(wrapped_q) * q_step if wrapped_q else 0
 
-    content_h = title_block_h + divider_h + body_block_h + (28 + q_block_h if q_block_h else 0)
-    # 主内容区位于 y=165..1540 之间居中（给底部胶囊条和平台 UI 留足安全区）
-    safe_top = 175
-    safe_bottom = 1545
+    content_h = title_block_h + divider_h + body_block_h + (26 + q_block_h if q_block_h else 0)
+    # 主内容区位于 y=120..1580 之间居中（给底部胶囊条和平台 UI 留足安全区）
+    safe_top = 125
+    safe_bottom = 1580
     y = safe_top + max(0, (safe_bottom - safe_top - content_h) // 2)
 
     # ① 顶部大标题
     for line in wrapped_title:
-        draw_outlined_centered_text(img, y, line, title_font, theme["accent"], theme["stroke"], stroke_width=6)
+        draw_outlined_centered_text(img, y, line, title_font, theme["accent"], theme["stroke"], stroke_width=7)
         y += title_step
 
     # 细横线 + 中间圆点分隔符（1:1 复刻实发版式）
-    div_y = y + 14
-    line_half = 175
+    div_y = y + 12
+    line_half = 210
     cx = WIDTH // 2
     d = ImageDraw.Draw(img)
     d.line([(cx - line_half, div_y), (cx - 18, div_y)], fill=theme["accent"], width=3)
     d.line([(cx + 18, div_y), (cx + line_half, div_y)], fill=theme["accent"], width=3)
-    d.ellipse([(cx - 5, div_y - 5), (cx + 5, div_y + 5)], fill=theme["accent"])
+    d.ellipse([(cx - 6, div_y - 6), (cx + 6, div_y + 6)], fill=theme["accent"])
     y += divider_h
 
     # ② 中部正文
     for line in wrapped_body:
-        draw_outlined_centered_text(img, y, line, body_font, theme["body"], theme["stroke"], stroke_width=5)
+        draw_outlined_centered_text(img, y, line, body_font, theme["body"], theme["stroke"], stroke_width=6)
         y += body_step
 
     # ③ 底部轻互动问句
     if wrapped_q:
-        y += 24
+        y += 22
         for line in wrapped_q:
-            draw_outlined_centered_text(img, y, line, q_font, theme["accent"], theme["stroke"], stroke_width=4)
+            draw_outlined_centered_text(img, y, line, q_font, theme["accent"], theme["stroke"], stroke_width=5)
             y += q_step
 
-    # ④ 底部半透明圆角胶囊条（固定位于 y=1600 附近，避开抖音底部文案栏）
+    # ④ 底部半透明圆角胶囊条（固定位于 y=1620 附近，避开抖音底部文案栏）
     if pill.strip():
         pb = d.textbbox((0, 0), pill, font=pill_font)
         pw = pb[2] - pb[0]
         ph = pb[3] - pb[1]
-        pad_x, pad_y = 44, 18
+        pad_x, pad_y = 48, 20
         box_w = pw + pad_x * 2
         box_h = ph + pad_y * 2
-        pill_y = max(y + 42, 1605)
-        pill_y = min(pill_y, 1665)
+        pill_y = max(y + 36, 1625)
+        pill_y = min(pill_y, 1690)
         x0 = (WIDTH - box_w) // 2
         y0 = pill_y
         d.rounded_rectangle(
@@ -328,6 +334,87 @@ def build_overlay_png(
     img.save(out_png, "PNG")
 
 
+def pick_unique_bgm(bgm_dir: Path, duration: float, ledger: dict) -> tuple[Path, float]:
+    """从 BGM 素材池自动挑选未用过的音频/视频音轨片段，防止批量撞音乐。"""
+    tracks = sorted(
+        p for p in bgm_dir.rglob("*")
+        if p.is_file() and p.suffix.lower() in {".mp3", ".m4a", ".wav", ".aac", ".flac", ".ogg", ".mp4"}
+    )
+    if not tracks:
+        raise FileNotFoundError(f"BGM 素材目录为空：{bgm_dir}")
+
+    used = set(ledger.get("used_bgm", []))
+    random.shuffle(tracks)
+    step = math.ceil(duration + 1.0)
+
+    for tr in tracks:
+        try:
+            tdur = ffprobe_duration(str(tr))
+        except Exception:
+            continue
+        segs = []
+        if tdur <= duration + 1.0:
+            key = f"{tr.name}@0"
+            if key not in used:
+                segs.append((tr, 0.0, key))
+        else:
+            st = 0
+            while st + duration <= tdur:
+                key = f"{tr.name}@{st}"
+                if key not in used:
+                    segs.append((tr, float(st), key))
+                st += step
+        if segs:
+            p, s, k = random.choice(segs)
+            ledger.setdefault("used_bgm", []).append(k)
+            return p, s
+
+    # 若 BGM 池轮完一遍，随机挑一首并随机起始秒继续轮换
+    tr = random.choice(tracks)
+    try:
+        tdur = ffprobe_duration(str(tr))
+        st = random.uniform(0, max(0.0, tdur - duration))
+    except Exception:
+        st = 0.0
+    return tr, st
+
+
+def generate_gentle_ambient_wav(out_wav: Path, duration: float, seed: int) -> None:
+    """无外部 BGM 时的纯离线治愈暖调和弦背景音兜底（柔和不抢眼，每条音色微变）。"""
+    sr = 44100
+    n_samples = int(sr * duration)
+    rng = random.Random(seed)
+    chords = [
+        [261.63, 329.63, 392.00, 493.88],  # Cmaj7
+        [220.00, 261.63, 329.63, 392.00],  # Am7
+        [174.61, 220.00, 261.63, 329.63],  # Fmaj7
+        [196.00, 246.94, 293.66, 392.00],  # G6
+    ]
+    rng.shuffle(chords)
+    chord_dur = duration / len(chords)
+
+    frames = bytearray()
+    for i in range(n_samples):
+        t = i / sr
+        c_idx = min(int(t / chord_dur), len(chords) - 1)
+        local_t = t - c_idx * chord_dur
+        env = min(1.0, local_t / 0.35) * min(1.0, (chord_dur - local_t) / 0.35)
+        master_env = min(1.0, t / 0.4) * min(1.0, (duration - t) / 0.8)
+        val = 0.0
+        for idx, freq in enumerate(chords[c_idx]):
+            val += math.sin(2.0 * math.pi * freq * t) * (0.28 if idx == 0 else 0.18)
+            val += math.sin(2.0 * math.pi * (freq * 2.0) * t) * 0.04
+        sample = max(-1.0, min(1.0, val * env * master_env * 0.32))
+        pcm = int(sample * 32767)
+        frames += struct.pack("<hh", pcm, pcm)
+
+    with wave.open(str(out_wav), "wb") as wf:
+        wf.setnchannels(2)
+        wf.setsampwidth(2)
+        wf.setframerate(sr)
+        wf.writeframes(bytes(frames))
+
+
 def render_poster_video(
     bg_video: Path | None,
     bg_start: float,
@@ -335,6 +422,8 @@ def render_poster_video(
     out_mp4: Path,
     duration: float,
     bgm_audio: Path | None,
+    bgm_start: float,
+    bgm_volume: float,
     anti_dup_seed: int,
 ) -> None:
     rng = random.Random(anti_dup_seed)
@@ -373,7 +462,7 @@ def render_poster_video(
     cmd += ["-loop", "1", "-t", f"{duration:.2f}", "-i", str(overlay_png)]
 
     if bgm_audio is not None:
-        cmd += ["-stream_loop", "-1", "-i", str(bgm_audio)]
+        cmd += ["-stream_loop", "-1", "-ss", f"{bgm_start:.2f}", "-i", str(bgm_audio)]
 
     filter_complex = (
         f"[0:v]{bg_chain}[bg];"
@@ -383,7 +472,11 @@ def render_poster_video(
     cmd += ["-filter_complex", filter_complex, "-map", "[vout]"]
 
     if bgm_audio is not None:
-        cmd += ["-map", "2:a:0", "-c:a", "aac", "-b:a", "128k", "-af", f"volume=0.35,afade=t=out:st={max(0, duration-0.8):.2f}:d=0.8"]
+        cmd += [
+            "-map", "2:a:0",
+            "-c:a", "aac", "-b:a", "192k", "-ar", "44100", "-ac", "2",
+            "-af", f"volume={bgm_volume:.2f},afade=t=in:st=0:d=0.25,afade=t=out:st={max(0, duration-0.7):.2f}:d=0.7",
+        ]
     else:
         cmd += ["-an"]
 
@@ -423,7 +516,10 @@ def main() -> None:
     parser.add_argument("--job", required=True, help="大字报配置 JSON 路径")
     parser.add_argument("--bg", help="指定单个背景空镜视频路径")
     parser.add_argument("--bg-dir", help="背景空镜素材池目录（自动抽取未用过的时间窗）")
-    parser.add_argument("--bgm", help="可选背景音乐文件；不传则出无声版（推荐发布时挂平台热门轻音乐）")
+    parser.add_argument("--bgm", help="指定背景音乐文件（支持 mp3/m4a/wav 或带音轨的 mp4）")
+    parser.add_argument("--bgm-dir", help="BGM 素材池目录（自动轮换未用过片段防重）")
+    parser.add_argument("--bgm-volume", type=float, default=0.85, help="背景音乐音量倍率（默认 0.85）")
+    parser.add_argument("--silent", action="store_true", help="强制导出无声版（不加任何背景音乐）")
     parser.add_argument("--ledger", default="used_history.json", help="防重账本 JSON 路径")
     parser.add_argument("--out-dir", required=True, help="输出目录")
     parser.add_argument("--force", action="store_true", help="强制覆盖同文案查重限制")
@@ -462,17 +558,34 @@ def main() -> None:
     slug = job.get("slug", f"poster-{datetime.now().strftime('%Y%m%d-%H%M%S')}")
     out_mp4 = out_dir / f"{slug}.mp4"
 
+    bgm_audio: Path | None = None
+    bgm_start = 0.0
+    bgm_label = "silent"
+    if not args.silent:
+        if args.bgm:
+            bgm_audio = Path(args.bgm)
+            bgm_label = bgm_audio.name
+        elif args.bgm_dir:
+            bgm_audio, bgm_start = pick_unique_bgm(Path(args.bgm_dir), duration, ledger)
+            bgm_label = f"{bgm_audio.name}@{bgm_start:.1f}s"
+
     with tempfile.TemporaryDirectory() as tmp:
         overlay_png = Path(tmp) / "overlay.png"
         build_overlay_png(title, body_lines, question, pill, theme_key, overlay_png)
         seed = int(hashlib.sha256(f"{copy_hash}-{datetime.now().isoformat()}".encode()).hexdigest()[:8], 16)
+        if not args.silent and bgm_audio is None:
+            bgm_audio = Path(tmp) / "gentle-ambient.wav"
+            generate_gentle_ambient_wav(bgm_audio, duration, seed)
+            bgm_label = "builtin-ambient-chord"
         render_poster_video(
             bg_video=bg_video,
             bg_start=bg_start,
             overlay_png=overlay_png,
             out_mp4=out_mp4,
             duration=duration,
-            bgm_audio=Path(args.bgm) if args.bgm else None,
+            bgm_audio=bgm_audio,
+            bgm_start=bgm_start,
+            bgm_volume=args.bgm_volume,
             anti_dup_seed=seed,
         )
 
@@ -488,6 +601,7 @@ def main() -> None:
         "theme": theme_key,
         "duration": duration,
         "bg": f"{bg_video.name}@{bg_start:.1f}s" if bg_video else "solid-fallback",
+        "bgm": bgm_label,
         "output": str(out_mp4),
     })
     save_ledger(ledger_path, ledger)
@@ -500,6 +614,7 @@ def main() -> None:
         "theme": theme_key,
         "duration": duration,
         "bg": f"{bg_video.name}@{bg_start:.1f}s" if bg_video else "solid-fallback",
+        "bgm": bgm_label,
         "copy_hash": copy_hash,
     }, ensure_ascii=False, indent=2))
 
