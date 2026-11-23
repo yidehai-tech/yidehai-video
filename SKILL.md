@@ -4,7 +4,7 @@ description: >-
   亿德海（yidehai）团队短视频创作与批量出片助手（面向非技术成员）。统一中文视频形态命名：「大字报」（8.8秒一镜到底满屏大字）与「动效片」（多屏动态视觉，底层自动驱动 OpenMotion），支持单条精做与一次批量出 10–100+ 条（默认各一半，支持自定义配比、断点续跑与审片台）。
   内置品牌合规红线、真实业务规则、爆款写稿方法论、本地素材目录记忆与在线免费空镜/音乐引导配置。
   当团队成员说“帮我做一条旧衣回收视频”、“做一条大字报”、“做一条动效片”、“帮我批量生成 50/100 条视频”、“初始化/更新视频助手”时，自动按本 Skill 执行，无需反复交代项目背景。
-version: "1.8.6"
+version: "1.9.0"
 ---
 
 # 亿德海团队短视频创作与出片 Skill
@@ -75,13 +75,14 @@ version: "1.8.6"
      - 若成员在对话中主动贴了本地素材目录或 Pexels/Pixabay/Jamendo 的 Key，立刻调用 `media_manager.py config` 自动保存（**回复中严禁复述密钥明文**）；未提供时**不要弹窗追问**，直接按已有目录/缓存/内置兜底继续出片，仅在交付成片后附 1 句可选提示（如需更多在线免费风景空镜可注册 Pexels `https://www.pexels.com/api/` 或 Pixabay `https://pixabay.com/api/docs/` 把 Key 贴在对话框即可）。
   2. **音频全自动（严禁弹窗询问）**：
      - 默认自动配乐（不加 `--silent`）；仅当成员在指令中明确说了「无声版 / 不要背景音乐」时加 `--silent`。
-  3. **一键离线渲染（自动混合本地目录 + 在线按需缓存 + 全局防重账本）**：
+  3. **一键离线渲染（自动按日期归档 + 本地/在线混合 + 全局防重）**：
      ```sh
-     python3 scripts/render_poster.py --job job.json --out-dir <输出目录>          # 带背景音乐
-     python3 scripts/render_poster.py --job job.json --out-dir <输出目录> --silent # 无声版
+     python3 scripts/render_poster.py --job job.json --out-dir outputs --organize-by-date          # 自动配真实音乐（无则出干净无声版）
+     python3 scripts/render_poster.py --job job.json --out-dir outputs --organize-by-date --silent # 强制无声版
      ```
+     - **标准按日期归档结构**：单条自动归入 `outputs/YYYY-MM-DD/YYYYMMDD-HHMMSS-大字报-<slug>/`（内含成片 MP4、9:16 & 3:4 双封面与 `发布文案.md`）；批量自动归入 `outputs/YYYY-MM-DD/batch-HHMMSS/`（内含 `review.html` 与 `V001-大字报/`、`V002-动效片/` 子目录），绝不散落一地。
      - 自动读取本机 `~/.yidehai-video/config.json` 记住的本地目录（如有）与 `~/.yidehai-video/cache/` 在线缓存，按 `bg_source=both` 混合轮换；在线缓存不足时自动按需从 `knowledge/media-catalog.json` 或已配的 Pexels / Pixabay / Jamendo 免费 API 拉取到本机缓存，**不占用 Skill 仓库体积**。
-     - 自动完成：① 文案查重；② 8.8 秒背景时间窗防重并写入全局 `~/.yidehai-video/used_history.json`；③ BGM 池轮换（无 BGM 且未选 `--silent` 时自动叠加柔和治愈和弦）；④ 随机视觉指纹微调与元数据去重；⑤ 10 秒内输出满屏大字 `1080×1920` 30fps 成片 MP4 + `9:16` 封面 + `3:4` 小红书封面。
+     - 自动完成：① 文案查重；② 8.8 秒背景时间窗防重并写入全局 `~/.yidehai-video/used_history.json`；③ 真实 BGM 池轮换（**未配置真实音乐库时不强塞奇怪的合成和弦，直接出干净无声版供发平台挂热门音乐**）；④ 随机视觉指纹微调与元数据去重；⑤ 10 秒内输出满屏大字 `1080×1920` 30fps 成片 MP4 + `9:16` 封面 + `3:4` 小红书封面。
   4. **交付前抽检**：用图片查看工具检查 `cover-9x16.jpg` 与 `cover-3x4.jpg`，确认无孤字换行、文字清晰、无裁切。
 
 - **路径 A：OpenMotion 最新稳定版自动出片（多屏创意动效片首选）**
@@ -108,7 +109,7 @@ version: "1.8.6"
    - 若成员指定无声版，命令行加 `--silent`。
 3. **一键批量调度渲染 + 自动审片台**：
    ```sh
-   python3 scripts/batch_runner.py --manifest batch_manifest.json --out-dir <本批输出目录> --workers 2
+   python3 scripts/batch_runner.py --manifest batch_manifest.json --out-dir outputs --organize-by-date --workers 2
    ```
    - 自动完成：① 全批合规红线硬拦截 + 批内/全局文案防重；② `大字报` 并发极速渲染（自动防重空镜与 BGM）；③ `动效片` 自动探测本机 OpenMotion 前台同步渲染（若引擎暂未就绪，优雅标为待渲并保留工程，绝不阻塞整批大字报出片）；④ 支持中断后重跑同一命令**断点续跑**；⑤ 自动生成一页可视化 **`review.html` 审片台**，支持按「大字报 / 动效片」筛选和直接播放验收。
 
@@ -117,12 +118,12 @@ version: "1.8.6"
 ## 四、音频与成片交付提醒
 
 - **统一自动配乐（大字报与动效片一致 · 严禁擅自扫系统个人音乐目录）**：
-  - 无论 `大字报` 还是 `动效片`，**默认全部自动配上无版权背景音乐**，严格按以下优先级：
+  - 无论 `大字报` 还是 `动效片`，**默认自动配真实无版权背景音乐**，严格按以下优先级：
     1. **在线无版权音乐源**（`knowledge/media-catalog.json` 清单 → 已配置 Jamendo Client ID 时自动从 Jamendo 拉取 CC 协议纯音乐 MP3 到 `~/.yidehai-video/cache/bgm/`）；
     2. **用户明确指定的免版权本地音乐目录**（仅限用户主动提供并写入 `config.json` 的目录）；
-    3. **内置离线治愈和弦兜底**（0 版权风险）。
+    3. **未配置任何真实音乐源时，直接导出干净无声版**（不再默认强塞电子合成和弦），方便发抖音/小红书时直接挂载平台热门轻音乐。
   - **红线：严禁擅自扫描系统个人音乐文件夹**（如 `C:\Users\...\Music`、`~/Music`），以免混入有版权的流行歌曲导致平台静音/下架！若本机尚未配置 Jamendo 免费 Client ID，交付成片后用 1 句话提醒用户可去 `https://developer.jamendo.com/` 免费注册后贴到对话框即可自动解锁在线几十万首无版权纯音乐。
-  - **只有成员明确说「无声版 / 不要背景音乐」时才输出纯无声版**（`--silent`）。
+  - **成员明确说「无声版 / 不要背景音乐」时直接传 `--silent`**。
 - **AI 生成声明**：成片含 AI 生成画面或配音时，上传按各平台要求勾选「AI 生成」声明。
 - **涉及具体报价/城市开通疑问**：不要在脚本里写死某省单价或承诺全国所有地区都支持按重量回收；统一用真实且安全的通用卖点（如「5KG 起收」「羽绒服 3 件起收」「多品类可一起打包」「专人免费上门」「具体以小程序下单页面为准」）。
 

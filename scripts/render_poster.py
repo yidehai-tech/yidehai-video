@@ -529,8 +529,10 @@ def main() -> None:
     parser.add_argument("--bgm-dir", help="BGM 素材池目录（不传则自动读取本机记忆目录 + 在线缓存）")
     parser.add_argument("--bgm-volume", type=float, default=0.85, help="背景音乐音量倍率（默认 0.85）")
     parser.add_argument("--silent", action="store_true", help="强制导出无声版（不加任何背景音乐）")
+    parser.add_argument("--ambient-fallback", action="store_true", help="无真实 BGM 时使用内置合成和弦兜底（默认关闭，改出干净无声版）")
     parser.add_argument("--ledger", help="防重账本 JSON 路径（默认使用全局 ~/.yidehai-video/used_history.json）")
     parser.add_argument("--out-dir", required=True, help="输出目录")
+    parser.add_argument("--organize-by-date", action="store_true", help="自动按 YYYY-MM-DD/YYYYMMDD-HHMMSS-大字报-slug 归档子目录")
     parser.add_argument("--force", action="store_true", help="强制覆盖同文案查重限制")
     args = parser.parse_args()
 
@@ -579,9 +581,12 @@ def main() -> None:
         if picked is not None:
             bg_video, bg_start = picked
 
+    now = datetime.now()
+    slug = job.get("slug", f"poster-{now.strftime('%Y%m%d-%H%M%S')}")
     out_dir = Path(args.out_dir)
+    if args.organize_by_date:
+        out_dir = out_dir / now.strftime("%Y-%m-%d") / f"{now.strftime('%Y%m%d-%H%M%S')}-大字报-{slug}"
     out_dir.mkdir(parents=True, exist_ok=True)
-    slug = job.get("slug", f"poster-{datetime.now().strftime('%Y%m%d-%H%M%S')}")
     out_mp4 = out_dir / f"{slug}.mp4"
 
     bgm_audio: Path | None = None
@@ -596,8 +601,8 @@ def main() -> None:
             if args.bgm_dir:
                 bgm_dirs.append(Path(args.bgm_dir))
             else:
-                bgm_dirs.extend(Path(d) for d in cfg.get("local_bgm_dirs", []))
                 bgm_dirs.append(Path(cfg["cache_bgm_dir"]))
+                bgm_dirs.extend(Path(d) for d in cfg.get("local_bgm_dirs", []))
             picked_bgm = pick_unique_bgm(bgm_dirs, duration, ledger)
             if picked_bgm is None:
                 media_manager.ensure_online_media("bgm_tracks", count=2, cfg=cfg)
@@ -611,9 +616,12 @@ def main() -> None:
         build_overlay_png(title, body_lines, question, pill, theme_key, overlay_png)
         seed = int(hashlib.sha256(f"{copy_hash}-{datetime.now().isoformat()}".encode()).hexdigest()[:8], 16)
         if not args.silent and bgm_audio is None:
-            bgm_audio = Path(tmp) / "gentle-ambient.wav"
-            generate_gentle_ambient_wav(bgm_audio, duration, seed)
-            bgm_label = "builtin-ambient-chord"
+            if args.ambient_fallback:
+                bgm_audio = Path(tmp) / "gentle-ambient.wav"
+                generate_gentle_ambient_wav(bgm_audio, duration, seed)
+                bgm_label = "builtin-ambient-chord"
+            else:
+                bgm_label = "silent-no-bgm-configured"
         render_poster_video(
             bg_video=bg_video,
             bg_start=bg_start,

@@ -227,7 +227,8 @@ def run_one_item(
 ) -> dict:
     item_id = item["id"]
     norm_type = normalize_type(item.get("type", "大字报"))
-    item_dir = out_root / item_id
+    type_zh = TYPE_DISPLAY[norm_type]
+    item_dir = out_root / f"{item_id}-{type_zh}"
     item_dir.mkdir(parents=True, exist_ok=True)
     job_path = item_dir / "job.json"
     job_path.write_text(json.dumps(item, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -289,7 +290,7 @@ def run_one_item(
     if proc.returncode != 0 or not out_mp4.exists():
         return {"id": item_id, "type": "motion", "type_zh": TYPE_DISPLAY["motion"], "title": item.get("title", ""), "status": "failed", "error": (proc.stderr or proc.stdout).strip()[-400:]}
 
-    # 默认自动给动效片混入防重背景音乐（仅当指定 --silent 时保持无声）
+    # 默认优先给动效片混入真实防重背景音乐；若未配置任何真实 BGM，直接保留干净无声版（不再强塞合成和弦）
     bgm_label = "silent"
     if not item.get("silent", silent_default):
         cfg = media_manager.load_config()
@@ -297,36 +298,31 @@ def run_one_item(
         ledger = render_poster.load_ledger(ledger_path)
         duration = float(item.get("duration", 10.0))
         bgm_dirs = [Path(bgm_dir_override)] if bgm_dir_override else (
-            [Path(d) for d in cfg.get("local_bgm_dirs", [])] + [Path(cfg["cache_bgm_dir"])]
+            [Path(cfg["cache_bgm_dir"])] + [Path(d) for d in cfg.get("local_bgm_dirs", [])]
         )
         picked_bgm = render_poster.pick_unique_bgm(bgm_dirs, duration, ledger)
         if picked_bgm is None:
             media_manager.ensure_online_media("bgm_tracks", count=2, cfg=cfg)
             picked_bgm = render_poster.pick_unique_bgm([Path(cfg["cache_bgm_dir"])], duration, ledger)
-        tmp_audio = item_dir / "_motion_bgm.wav"
         if picked_bgm is not None:
             bgm_src, bgm_start = picked_bgm
             bgm_label = f"{bgm_src.name}@{bgm_start:.1f}s"
+            muxed_mp4 = item_dir / f"{item.get('slug', item_id)}.muxed.mp4"
+            mux_proc = subprocess.run([
+                om_runtime["ffmpeg_path"], "-y", "-v", "error",
+                "-i", str(out_mp4),
+                "-stream_loop", "-1", "-ss", f"{bgm_start:.2f}", "-i", str(bgm_src),
+                "-map", "0:v:0", "-map", "1:a:0",
+                "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-ar", "44100", "-ac", "2",
+                "-af", f"volume=0.80,afade=t=in:st=0:d=0.25,afade=t=out:st={max(0, duration-0.7):.2f}:d=0.7",
+                "-t", f"{duration:.2f}", "-movflags", "+faststart",
+                str(muxed_mp4),
+            ], capture_output=True, text=True)
+            if mux_proc.returncode == 0 and muxed_mp4.exists():
+                muxed_mp4.replace(out_mp4)
+                render_poster.save_ledger(ledger_path, ledger)
         else:
-            seed = int(hashlib.sha256(f"{item_id}-{datetime.now().isoformat()}".encode()).hexdigest()[:8], 16)
-            render_poster.generate_gentle_ambient_wav(tmp_audio, duration, seed)
-            bgm_src, bgm_start = tmp_audio, 0.0
-            bgm_label = "builtin-ambient-chord"
-        muxed_mp4 = item_dir / f"{item.get('slug', item_id)}.muxed.mp4"
-        mux_proc = subprocess.run([
-            om_runtime["ffmpeg_path"], "-y", "-v", "error",
-            "-i", str(out_mp4),
-            "-stream_loop", "-1", "-ss", f"{bgm_start:.2f}", "-i", str(bgm_src),
-            "-map", "0:v:0", "-map", "1:a:0",
-            "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-ar", "44100", "-ac", "2",
-            "-af", f"volume=0.80,afade=t=in:st=0:d=0.25,afade=t=out:st={max(0, duration-0.7):.2f}:d=0.7",
-            "-t", f"{duration:.2f}", "-movflags", "+faststart",
-            str(muxed_mp4),
-        ], capture_output=True, text=True)
-        if mux_proc.returncode == 0 and muxed_mp4.exists():
-            muxed_mp4.replace(out_mp4)
-            render_poster.save_ledger(ledger_path, ledger)
-        tmp_audio.unlink(missing_ok=True)
+            bgm_label = "silent-no-bgm-configured"
 
     cover_9x16 = item_dir / "cover-9x16.jpg"
     cover_3x4 = item_dir / "cover-3x4.jpg"
@@ -409,6 +405,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="亿德海批量短视频工厂（默认 50% 大字报 + 50% 动效片，支持断点续跑）")
     parser.add_argument("--manifest", required=True, help="批量任务 JSON（items 列表，每项可填 type: 大字报 / 动效片）")
     parser.add_argument("--out-dir", required=True, help="本批输出根目录")
+    parser.add_argument("--organize-by-date", action="store_true", help="自动按 YYYY-MM-DD/batch-HHMMSS/ 归档本批输出")
     parser.add_argument("--workers", type=int, default=2, help="大字报并发渲染线程数（默认 2）")
     parser.add_argument("--silent", action="store_true", help="整批默认导出无声版")
     parser.add_argument("--bg-dir", help="可选覆盖背景空镜目录")
@@ -440,7 +437,10 @@ def main() -> None:
         print(json.dumps({"ok": False, "stage": "precheck", "errors": compliance_errors}, ensure_ascii=False, indent=2))
         sys.exit(2)
 
+    now = datetime.now()
     out_root = Path(args.out_dir)
+    if args.organize_by_date:
+        out_root = out_root / now.strftime("%Y-%m-%d") / f"batch-{now.strftime('%H%M%S')}"
     out_root.mkdir(parents=True, exist_ok=True)
     progress_path = out_root / "progress.json"
     progress = json.loads(progress_path.read_text(encoding="utf-8")) if progress_path.exists() else {}
