@@ -42,6 +42,6 @@ yidehai-video-skill/
   - 在 WorkBuddy 中直接发一句：`请从 https://github.com/yidehai-tech/yidehai-video-skill 安装 yidehai-video-skill`
   - 或在支持 `skills` CLI 的环境中执行：`npx skills add yidehai-tech/yidehai-video-skill`
 - **同事一键更新**：
-  - 群里通知更新后，在 WorkBuddy 中直接说：`帮我更新一下 yidehai-video-skill`（或重新运行安装命令覆盖更新）。
+  - 群里通知更新后，在 WorkBuddy 中直接说：`帮我更新一下 yidehai-video-skill`——系统会自动同步**最新业务知识库**，并顺手把 **OpenMotion 及已装相关插件升级到最新稳定版**。
 - **管理员维护知识库**：
   - 修改 `knowledge/` 中对应的 Markdown 文件，递增 `SKILL.md` 中的 `version`，执行 `git commit && git push` 即可全员可拉取。
