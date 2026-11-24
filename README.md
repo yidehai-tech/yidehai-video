@@ -1,6 +1,6 @@
 # yidehai-video-skill
 
-![Version](https://img.shields.io/badge/version-2.6.0-2B8A3E)
+![Version](https://img.shields.io/badge/version-2.6.1-2B8A3E)
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue)
 ![Standard](https://img.shields.io/badge/Agent%20Skills-SKILL.md-orange)
 
@@ -55,6 +55,18 @@ npx skills add yidehai-tech/yidehai-video-skill
 
 适用于 **豆包、通义千问、Kimi、扣子、ChatGPT Projects** 等无本地终端环境的工具：  
 将本仓库的 `SKILL.md` 与 `knowledge/01–10` 导入对应智能体或项目知识库，即可自动切换为 **编导 + 合规自检 + Prompt 工厂模式**，直接产出合规脚本、双封面文案及可直接粘贴进即梦/Flow/剪映的防穿帮提示词。
+
+### 多 Agent 工具共用同一项目（防漏唤起一键桥接）
+
+不同桌面 Agent 默认扫描各自的私有目录（如 `~/.workbuddy/skills`、`~/.claude/skills`、`~/.codex/skills` 或工作区 `.skills/`）。若在同一台电脑上混用 WorkBuddy、豆包桌面端、Claude Code、Codex、Cursor，运行一次内置桥接脚本即可通过**软链 / Windows `mklink /J` 目录联接**（单一事实源，更新一次全工具同步）全部打通，并在项目根目录自动生成跨工具通用的 `AGENTS.md` 兜底入口：
+
+```bash
+# 同步挂载到本机已装的各家 Agent 技能目录 + 指定业务项目（支持 --dry-run 预览）
+python3 scripts/link_skill.py --project-dir "/path/to/your-video-project"
+
+# 若某个宿主使用自定义技能目录（例如豆包内置 .skills），可追加 --extra-skills-dir
+python3 scripts/link_skill.py --project-dir "/path/to/your-video-project" --extra-skills-dir "/path/to/host/.skills"
+```
 
 ---
 
@@ -129,7 +141,8 @@ yidehai-video-skill/
     ├── dreamina_runner.py                 # 即梦 CLI 防呆调度器（提交前原子落盘、防重复扣分、断点续查）
     ├── batch_runner.py                    # 批量出片调度器（断点续跑 + 可视化审片台 review.html）
     ├── motion_templates.py                # 动效片三套母版（5 套浅色主题轮换，无品牌浮条）
-    └── fetch_om_components.py             # OpenMotion native 组件镜像补齐与 sha256 校验脚本
+    ├── fetch_om_components.py             # OpenMotion native 组件镜像补齐与 sha256 校验脚本
+    └── link_skill.py                      # 跨宿主一键软链/联接挂载工具（解决多 Agent 目录孤岛）
 ```
 
 ---
