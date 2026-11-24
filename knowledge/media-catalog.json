@@ -1,5 +1,5 @@
 {
-  "_comment": "0 配置在线免版权风景空镜与亿德海专属 AI 治愈轻音乐直链清单（仓库只存 URL，不存二进制大文件；使用时由 scripts/media_manager.py 自动经国内镜像兜底按需下载到同事本机 ~/.yidehai-video/cache/ 并全局防重）。",
+  "_comment": "在线免版权风景空镜与亿德海专属 AI 治愈轻音乐直链清单（仓库只存 URL，不存二进制大文件；使用时由 scripts/media_manager.py 自动经国内镜像兜底按需下载到同事本机 ~/.yidehai-video/cache/ 并全局防重）。注意：GitHub Releases 直链可能受网络限制，须实测可用性，不可当作「免配置必然可用」的承诺；优先用 ~/.yidehai-video/cache/bgm/ 已缓存真实音源，无源时回落无声版并在交付说明写明。",
   "bg_videos": [],
   "bgm_tracks": [
     {

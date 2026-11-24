@@ -211,7 +211,8 @@ def run_one_item(
     if proc.returncode != 0 or not out_mp4.exists():
         return {"id": item_id, "type": "motion", "type_zh": TYPE_DISPLAY["motion"], "title": item.get("title", ""), "status": "failed", "error": (proc.stderr or proc.stdout).strip()[-400:]}
 
-    # 默认优先给动效片混入真实防重背景音乐；若未配置任何真实 BGM，直接保留干净无声版（不再强塞合成和弦）
+    # 默认优先给动效片混入真实防重背景音乐；若未配置任何真实 BGM，才回落干净无声版
+    # （不再强塞合成和弦），且必须在交付说明里写明「本次为无声版及原因」——无声版不是默认。
     bgm_label = "silent"
     if not item.get("silent", silent_default):
         cfg = media_manager.load_config()

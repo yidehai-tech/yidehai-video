@@ -93,12 +93,13 @@
    - 检测：`dreamina --version && dreamina user_credit`。
    - 未登录时执行 `dreamina login`（OAuth Device Flow），把终端输出的授权链接与 `user_code` 发给同事扫码完成，**保持命令运行直至打印登录成功后再明确回复同事**。
    - 若未安装 `dreamina`，告知同事按即梦官方 CLI 指引安装后再试（绝不自行编造假命令）。
-2. **免费中文配音（`edge-tts`，用于 `实拍混剪` 与 `省点混剪` 干声旁白）**：
+2. **免费中文配音（`edge-tts`，用于 `实拍混剪`、`省点混剪` 与 `动效片` 默认有声版旁白）**：
    - 走国内清华镜像秒装（已装则跳过）：
      ```sh
      python3 -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -U edge-tts
      ```
-   - 默认音色：`zh-CN-XiaoxiaoNeural` 或 `zh-CN-YunxiNeural`（纯人声无 BGM）。
+   - 默认音色：`zh-CN-XiaoxiaoNeural` 或 `zh-CN-YunxiNeural`（输出纯人声干声，BGM 由后期混音叠加，见 `09-motion-batch-field-notes.md` 第三节）。
+   - `动效片` 默认有声版也用此引擎：40–55 字、rate +10%、合成后 `atempo` 压进 9.4 秒。
 3. **音视频合成（`ffmpeg`）**：
    - 若缺失则自动装（macOS：`brew install ffmpeg`；Windows：`winget install -e --id Gyan.FFmpeg --accept-source-agreements --accept-package-agreements`）。
 
