@@ -1,6 +1,6 @@
 # yidehai-video-skill
 
-![Version](https://img.shields.io/badge/version-2.6.1-2B8A3E)
+![Version](https://img.shields.io/badge/version-2.6.2-2B8A3E)
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue)
 ![Standard](https://img.shields.io/badge/Agent%20Skills-SKILL.md-orange)
 
@@ -56,17 +56,19 @@ npx skills add yidehai-tech/yidehai-video-skill
 适用于 **豆包、通义千问、Kimi、扣子、ChatGPT Projects** 等无本地终端环境的工具：  
 将本仓库的 `SKILL.md` 与 `knowledge/01–10` 导入对应智能体或项目知识库，即可自动切换为 **编导 + 合规自检 + Prompt 工厂模式**，直接产出合规脚本、双封面文案及可直接粘贴进即梦/Flow/剪映的防穿帮提示词。
 
-### 多 Agent 工具共用同一项目（防漏唤起一键桥接）
+### 多 Agent 工具共用同一项目（自动自愈挂载，无需手动折腾）
 
-不同桌面 Agent 默认扫描各自的私有目录（如 `~/.workbuddy/skills`、`~/.claude/skills`、`~/.codex/skills` 或工作区 `.skills/`）。若在同一台电脑上混用 WorkBuddy、豆包桌面端、Claude Code、Codex、Cursor，运行一次内置桥接脚本即可通过**软链 / Windows `mklink /J` 目录联接**（单一事实源，更新一次全工具同步）全部打通，并在项目根目录自动生成跨工具通用的 `AGENTS.md` 兜底入口：
+不同桌面 Agent 默认扫描各自的私有目录。`scripts/link_skill.py` 内置覆盖国内外主流宿主（`WorkBuddy`、`豆包`、`通义千问`、`OpenClaw`、`Claude Code`、`Codex`、`Gemini/Antigravity`、`Cursor`、`Trae`、`Windsurf`、`Qoder`、`Kiro`、`Cline`、`Roo`、`Copilot`、`OpenCode` 以及开放标准 `.agents/skills` / `.skills`），**仅对本机已安装的宿主创建软链/联接**，并在项目根目录自动写入跨工具通用的 `AGENTS.md` 兜底入口。
 
-```bash
-# 同步挂载到本机已装的各家 Agent 技能目录 + 指定业务项目（支持 --dry-run 预览）
-python3 scripts/link_skill.py --project-dir "/path/to/your-video-project"
-
-# 若某个宿主使用自定义技能目录（例如豆包内置 .skills），可追加 --extra-skills-dir
-python3 scripts/link_skill.py --project-dir "/path/to/your-video-project" --extra-skills-dir "/path/to/host/.skills"
-```
+- **非技术用户直接用自然语言**：在任意新换的桌面 Agent 对话框里说一句：
+  ```text
+  请帮我把 yidehai-video-skill 自动挂载到当前项目和你自己的技能目录里
+  ```
+  Agent 会自动识别自身目录并静默完成联接（若未在默认列表里，也会由 Agent 主动调用 `--extra-skills-dir` 自愈解决，无需用户手敲命令）。
+- **开发者手动执行（可选）**：
+  ```bash
+  python3 scripts/link_skill.py --project-dir "/path/to/your-video-project"
+  ```
 
 ---
 
