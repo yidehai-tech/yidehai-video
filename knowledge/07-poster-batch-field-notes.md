@@ -19,11 +19,9 @@
    ```sh
    cp "<OM_HOME>/cache/native/win-x64/media-*/ffmpeg-*/bin/ffprobe.exe" ~/.yidehai-video/bin/ffprobe.exe
    ```
-3. 每次批量出片命令前显式导出 PATH：
-   ```sh
-   export PATH="/c/Users/Administrator/.yidehai-video/bin:$PATH"
-   python scripts/batch_runner.py ...
-   ```
+3. 每次批量出片命令前（若脚本未自动命中）可显式导出 PATH：
+   - Git Bash / macOS：`export PATH="$HOME/.yidehai-video/bin:$PATH"`
+   - Windows PowerShell：`$env:Path = "$env:USERPROFILE\.yidehai-video\bin;$env:Path"`
 4. 自检：`ffprobe_duration(bg_full.mp4)` 能返回约 29.0 的浮点数即正常；若抛 FileNotFoundError，先别渲染。
 
 ---
@@ -41,7 +39,7 @@
 - **真正要做到背景不同，必须有真正不同的素材源**，不能靠切同一条视频：
   1. 配 Pexels 或 Pixabay 免费 Key（`config --set-pexels-key / --set-pixabay-key`）；
   2. 用 `media_manager.ensure_online_media('bg_videos', count=2, query=...)` 按**不同场景词**多次拉取（内置 `DEFAULT_SCENIC_QUERIES` 有 6 种：forest / mountain / ocean / flowers / leaves / meadow），每种拉 1–2 条，凑够 N 条不同场景；
-  3. 拉新素材后**清空账本的 `used_bg_segments`**（`~/.yidehai-video/used_history.json`），否则旧窗口记录会干扰分配；
+  3. 新增背景文件会被 `pick_unique_bg_segment()` 的三级优先队列自动优先抽取，**不要手动清空整个 `used_bg_segments` 历史**（避免旧素材再次重复）；
   4. 素材池要 ≥ N 个不重复窗口，否则超出的条目照样回退纯色。
 
 ### 铁律

@@ -18,7 +18,7 @@
   node -v
   ```
   - 需 `Node.js ≥ 22.18`（如 `22.22.x` 即满足）。
-  - 若未安装或低于 `22.18`，按系统自动安装 LTS 版（macOS：`brew install node`；Windows：`winget install -e --id OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements`）；若权限受限无法自动装，**不要卡死**，直接跳到下方「三、非阻塞降级」。
+  - 若未安装或低于 `22.18`，按系统自动安装 LTS 版（macOS：`brew install node`；Windows：`winget install -e --id OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements`）；若权限受限无法自动装，**不要卡死**，直接跳到下方「五、非阻塞降级原则」。
 
 ### 2. 一键安装 `@openmotion/app@latest`（直走国内镜像，防官方源重置）
 
@@ -82,8 +82,8 @@
    - Windows (PowerShell)：`Get-Command ego-browser; ego-browser nodejs -e "console.log('ego-browser ready')"`
 2. **未安装时的自动处理**：
    - **macOS**：直接引导/运行 `ego-browser` 官方 macOS 安装流程（下载对应 arm64/x64 DMG 安装 `ego lite.app` 到 `/Applications` 并拉起），提示同事在弹出的 `ego lite` 窗口里点完首次引导（自动把 `ego-browser` 注册到 `~/.local/bin`），再验证 `ego-browser ready`。
-   - **Windows**：目前官方无静默脚本，直接为同事打开下载页 `https://lite.ego.app/` 并给出 3 步极简指引：① 运行安装包（若 SmartScreen 拦截点“更多信息 → 仍要运行”）；② 打开 `ego lite` 完成首次引导并登录 Google Flow；③ 新开终端验证 `ego-browser ready`。
-3. 就绪后立刻切入 `knowledge/08-ai-video-engines.md` 第二节执行全自动生成。
+   - **Windows**：目前官方无静默脚本，直接为同事打开下载页 `https://lite.ego.app/` 并给出 3 步极简指引：① 核对官方发布方后运行安装包；② 打开 `ego lite` 完成首次引导并登录 Google Flow；③ 新开终端验证 `ego-browser ready`。
+3. 就绪后立刻切入 `knowledge/08-ai-video-engines.md` 第四节执行全自动生成。
 
 ---
 

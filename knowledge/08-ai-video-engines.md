@@ -96,8 +96,13 @@
 - **模板 B：Veo 3.1 - Lite 无声吸睛开场（8s · 10 点，供混剪用）**：
   > `9:16 vertical smartphone UGC shot, realistic Chinese {home / entryway / bedroom} scene, natural daylight, smooth handheld realism. A Chinese {person} {opening a packed wardrobe / neatly folding old winter jackets and placing them with old shoes and bags into a large woven bag}, focused and natural movement, mouth closed, not speaking. No on-screen text, no subtitles, no watermarks, no logos.`
 
-### 3. `ego-browser` 实操防踩坑铁律
-- **费用核对底线**：点击 `button[aria-label="开始生成"]` 前，必须先读页面 DOM 核对 `生成将消耗 X 个点数` 与预期一致（`24 / 30 / 10`），异常高价立刻中止并告知成员；完成后务必调用 `task.finish({ keep: [] })` 关闭 TaskSpace。
+### 3. `ego-browser` 实操防踩坑铁律（含跨会话防重扣点持久化）
+- **费用核对与点击前落盘（P0 防重复扣点硬规则）**：
+  1. 点击 `button[aria-label="开始生成"]` **之前**，必须先读页面 DOM 核对 `生成将消耗 X 个点数` 与预期一致（`24 / 30 / 10`），并统计当前项目网格页中已有的 `img[alt="生成的视频缩略图"]` 数量与 `src` 列表；
+  2. **先在任务目录写入 `flow_task.json`**（记录 `project_url`、`model`、`quoted_credits`、`existing_thumbnails_count`、`submitted_at`、`status: "submitting"`），然后再执行点击；
+  3. 异常高价立刻中止并告知成员；完成后务必调用 `task.finish({ keep: [] })` 关闭 TaskSpace。
+- **跨会话中断恢复规则**：
+  - 若浏览器断开、WorkBuddy 重启或点击后状态不明，**严禁直接再次点击生成**；必须先读取任务目录的 `flow_task.json`，回到同一个 `project_url` 比对网格中是否新增了缩略图（数量 > `existing_thumbnails_count` 且 URL 不在旧列表中）。若无法唯一匹配，立刻暂停并向成员汇报，等待人工确认。
 - **Omni 1.2 Flash（有声口播）**：
   1. 打开 `button[aria-label="设置"]`，确认 **`button[name="return-silent-videos"]` 为关闭（OFF）**；
   2. 模式选 **视频 + 竖屏（9:16）+ `Omni 1.2 Flash`（720p，严禁 360p）**；

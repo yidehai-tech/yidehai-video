@@ -8,18 +8,102 @@
 """
 
 import argparse
+import contextlib
 import hashlib
 import json
 import os
 import random
+import re
 import shutil
 import stat
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
+from typing import Any, Iterator
+
+FORBIDDEN_TERMS = [
+    "顺丰", "京东",
+    "当场结算", "当场打款", "当场结钱", "立返", "秒到账", "即时到账", "立刻到账", "马上打钱",
+    "微信搜", "搜一搜", "搜微信", "加微信",
+    "看主页", "点主页", "点左下角", "点我头像", "点击头像", "点头像",
+    "关注我", "评论区扣", "私信我", "私信领",
+]
+
+
+def check_forbidden_terms(texts: list[str]) -> list[str]:
+    """统一共享合规硬红线检测，返回命中的禁用词列表。"""
+    joined = "\n".join(str(t or "") for t in texts)
+    return [term for term in FORBIDDEN_TERMS if term in joined]
+
+
+def sanitize_slug(raw: str, fallback: str = "video") -> str:
+    """跨平台单段安全文件名（剔除路径分隔符、Windows 非法字符与保留名）。"""
+    s = str(raw or "").strip()
+    s = re.sub(r'[\\/:*?"<>|\x00-\x1f]+', "-", s)
+    s = re.sub(r"\.{2,}", ".", s).strip(" .-")
+    if not s or s.upper() in {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)), *(f"LPT{i}" for i in range(1, 10))}:
+        return fallback
+    return s[:80]
+
+
+def safe_child_path(root: Path, *parts: str) -> Path:
+    """确保拼接后的路径严格位于 root 目录之内，防止路径穿越。"""
+    root_resolved = root.expanduser().resolve()
+    target = root_resolved.joinpath(*parts).resolve()
+    try:
+        target.relative_to(root_resolved)
+    except ValueError as exc:
+        raise ValueError(f"非法输出路径（越出根目录）：{target}") from exc
+    return target
+
+
+def atomic_write_json(path: Path, data: Any) -> None:
+    """跨平台原子写入 JSON（临时文件 + os.replace），避免并发或崩溃产生截断文件。"""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent))
+    tmp_path = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, path)
+    except Exception:
+        tmp_path.unlink(missing_ok=True)
+        raise
+
+
+@contextlib.contextmanager
+def file_lock(lock_path: Path, timeout: float = 15.0, stale_seconds: float = 600.0) -> Iterator[None]:
+    """基于 O_CREAT|O_EXCL 的跨平台文件锁（支持超时与陈旧锁清理）。"""
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    deadline = time.monotonic() + timeout
+    fd: int | None = None
+    while True:
+        try:
+            fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.write(fd, f"{os.getpid()}:{time.time():.0f}\n".encode("utf-8"))
+            os.close(fd)
+            fd = None
+            break
+        except FileExistsError:
+            try:
+                if time.time() - lock_path.stat().st_mtime > stale_seconds:
+                    lock_path.unlink(missing_ok=True)
+                    continue
+            except FileNotFoundError:
+                continue
+            if time.monotonic() >= deadline:
+                raise TimeoutError(f"获取文件锁超时（可能存在并发任务正在运行）：{lock_path}")
+            time.sleep(0.15)
+    try:
+        yield
+    finally:
+        lock_path.unlink(missing_ok=True)
 
 APP_DIR = Path.home() / ".yidehai-video"
 CONFIG_PATH = APP_DIR / "config.json"

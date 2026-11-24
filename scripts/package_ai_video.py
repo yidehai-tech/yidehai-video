@@ -33,7 +33,17 @@ from typing import Any
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
-from media_manager import DEFAULT_LEDGER_PATH, ensure_online_media, load_config, resolve_ffmpeg_tools  # noqa: E402
+from media_manager import (  # noqa: E402
+    DEFAULT_LEDGER_PATH,
+    atomic_write_json,
+    check_forbidden_terms,
+    ensure_online_media,
+    file_lock,
+    load_config,
+    resolve_ffmpeg_tools,
+    safe_child_path,
+    sanitize_slug,
+)
 import render_poster  # noqa: E402
 
 FORBIDDEN_TERMS = [
@@ -182,8 +192,7 @@ def check_compliance(job: dict[str, Any]) -> None:
     if isinstance(vo, dict):
         texts.append(vo.get("text", ""))
 
-    joined = "\n".join(texts)
-    hits = [term for term in FORBIDDEN_TERMS if term in joined]
+    hits = check_forbidden_terms(texts)
     if hits:
         raise ValueError(f"合规硬红线拦截！命中禁用词：{', '.join(hits)}")
 
@@ -577,18 +586,19 @@ def record_used_footage(names: list[str]) -> None:
     cfg = load_config()
     ledger_path = Path(cfg.get("ledger_path") or DEFAULT_LEDGER_PATH)
     ledger_path.parent.mkdir(parents=True, exist_ok=True)
-    data: dict[str, Any] = {}
-    if ledger_path.exists():
-        try:
-            data = json.loads(ledger_path.read_text(encoding="utf-8"))
-        except Exception:
-            data = {}
-    used = list(data.get("used_footage", []))
-    for n in names:
-        if n not in used:
-            used.append(n)
-    data["used_footage"] = used
-    ledger_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    with file_lock(ledger_path.with_suffix(".lock"), timeout=15.0):
+        data: dict[str, Any] = {}
+        if ledger_path.exists():
+            try:
+                data = json.loads(ledger_path.read_text(encoding="utf-8"))
+            except Exception:
+                data = {}
+        used = list(data.get("used_footage", []))
+        for n in names:
+            if n not in used:
+                used.append(n)
+        data["used_footage"] = used
+        atomic_write_json(ledger_path, data)
 
 
 def main() -> None:
@@ -608,15 +618,15 @@ def main() -> None:
     hf_cmd = resolve_hyperframes_cmd()
     font_path = find_cjk_font()
 
-    slug = job["slug"]
+    slug = sanitize_slug(job.get("slug", "ai-video"), fallback="ai-video")
     out_root = Path(args.out_dir).expanduser().resolve()
     if args.organize_by_date:
         day = time.strftime("%Y-%m-%d")
         ts = time.strftime("%Y%m%d-%H%M%S")
-        tag = job.get("format_label") or ("实拍混剪" if job.get("mode") == "montage" else "AI视频")
-        out_dir = out_root / day / f"{ts}-{tag}-{slug}"
+        tag = sanitize_slug(job.get("format_label") or ("实拍混剪" if job.get("mode") == "montage" else "AI视频"), fallback="AI视频")
+        out_dir = safe_child_path(out_root, day, f"{ts}-{tag}-{slug}")
     else:
-        out_dir = out_root / slug
+        out_dir = safe_child_path(out_root, slug)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     proj_dir = out_dir / "hf-project"
@@ -627,6 +637,8 @@ def main() -> None:
     shutil.copy2(font_path, font_dst)
 
     mode = job.get("mode", "native_audio")
+    if mode not in ("native_audio", "montage"):
+        raise ValueError(f"不支持的包装模式 mode={mode!r}（仅支持 'native_audio' 或 'montage'）。")
     used_footage: list[str] = []
     if mode == "montage":
         duration, fps, footage_path, used_footage = prepare_montage_assets(ffmpeg, ffprobe, job, assets_dir)
@@ -639,8 +651,10 @@ def main() -> None:
     # 1) HeyGen HyperFrames check & render
     env = os.environ.copy()
     env.setdefault("npm_config_registry", "https://registry.npmmirror.com")
-    run(hf_cmd + ["check", "--json"], cwd=proj_dir, check=False, env=env)
-    final_mp4 = out_dir / f"{slug}.mp4"
+    chk = run(hf_cmd + ["check", "--json"], cwd=proj_dir, check=False, env=env)
+    if chk.returncode != 0:
+        raise RuntimeError(f"HeyGen HyperFrames 预检失败（exit={chk.returncode}）：\n{chk.stdout}\n{chk.stderr}")
+    final_mp4 = safe_child_path(out_dir, f"{slug}.mp4")
     run(hf_cmd + ["render", "--quality", args.quality, "-o", str(final_mp4)], cwd=proj_dir, env=env)
 
     # 1.5) 统一音频口径（v2.3.2）：默认叠加 12% 真实无版权 BGM（amix normalize=0 + alimiter）；

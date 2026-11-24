@@ -65,10 +65,9 @@ def check_compliance(item: dict) -> list[str]:
         str(item.get("question", "")),
         str(item.get("pill", "")),
         str(item.get("publish_copy", "")),
+        str(item.get("voiceover_text", "")),
     ]
-    full_text = "\n".join(chunks)
-    hits = [term for term in FORBIDDEN_TERMS if term in full_text]
-    return hits
+    return media_manager.check_forbidden_terms(chunks)
 
 
 def item_copy_hash(item: dict) -> str:
@@ -255,10 +254,10 @@ def run_one_item(
 
         muxed_mp4 = item_dir / f"{slug_name}.muxed.mp4"
         fade_out_st = max(0.0, duration - 0.9)
-        if has_voice and picked_bgm is not None:
-            bgm_src, bgm_start = picked_bgm
-            bgm_label = f"{bgm_src.name}@{bgm_start:.1f}s(12%)"
-            # 探测旁白时长并按 9.4s 计算 atempo 防止超时吞字
+        mux_ok = False
+        audio_note = ""
+
+        def _probe_voice_tempo() -> float:
             vp = subprocess.run([
                 om_runtime["ffprobe_path"], "-v", "error", "-show_entries", "format=duration",
                 "-of", "default=noprint_wrappers=1:nokey=1", str(voice_mp3),
@@ -266,8 +265,12 @@ def run_one_item(
             try:
                 v_dur = float(vp.stdout.strip())
             except Exception:
-                v_dur = 9.0
-            tempo = min(1.5, max(1.0, v_dur / max(1.0, duration - 0.6)))
+                v_dur = max(1.0, duration - 0.6)
+            return min(1.5, max(1.0, v_dur / max(1.0, duration - 0.6)))
+
+        if has_voice and picked_bgm is not None:
+            bgm_src, bgm_start = picked_bgm
+            tempo = _probe_voice_tempo()
             mux_proc = subprocess.run([
                 om_runtime["ffmpeg_path"], "-y", "-v", "error",
                 "-i", str(out_mp4),
@@ -285,9 +288,33 @@ def run_one_item(
             if mux_proc.returncode == 0 and muxed_mp4.exists():
                 muxed_mp4.replace(out_mp4)
                 render_poster.save_ledger(ledger_path, ledger)
+                bgm_label = f"{bgm_src.name}@{bgm_start:.1f}s(12%)"
+                mux_ok = True
+            else:
+                audio_note = f"旁白+BGM 混音失败：{(mux_proc.stderr or '')[-200:]}"
+        elif has_voice:
+            # 补齐「仅旁白」分支：无 BGM 时绝不丢弃已生成的中文旁白
+            tempo = _probe_voice_tempo()
+            mux_proc = subprocess.run([
+                om_runtime["ffmpeg_path"], "-y", "-v", "error",
+                "-i", str(out_mp4),
+                "-i", str(voice_mp3),
+                "-filter_complex",
+                f"[1:a]aresample=48000,atempo={tempo:.3f},volume=1.10,apad,atrim=0:{duration:.2f},alimiter=limit=0.95[a]",
+                "-map", "0:v:0", "-map", "[a]",
+                "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+                "-t", f"{duration:.2f}", "-movflags", "+faststart",
+                str(muxed_mp4),
+            ], capture_output=True, text=True)
+            if mux_proc.returncode == 0 and muxed_mp4.exists():
+                muxed_mp4.replace(out_mp4)
+                bgm_label = "voice-only-no-bgm-source"
+                audio_note = "本机未找到真实 BGM，已保留中文旁白（无背景音乐）。"
+                mux_ok = True
+            else:
+                audio_note = f"纯旁白混音失败：{(mux_proc.stderr or '')[-200:]}"
         elif picked_bgm is not None:
             bgm_src, bgm_start = picked_bgm
-            bgm_label = f"{bgm_src.name}@{bgm_start:.1f}s(12%)"
             mux_proc = subprocess.run([
                 om_runtime["ffmpeg_path"], "-y", "-v", "error",
                 "-i", str(out_mp4),
@@ -301,9 +328,31 @@ def run_one_item(
             if mux_proc.returncode == 0 and muxed_mp4.exists():
                 muxed_mp4.replace(out_mp4)
                 render_poster.save_ledger(ledger_path, ledger)
+                bgm_label = f"{bgm_src.name}@{bgm_start:.1f}s(12%)"
+                audio_note = "edge-tts 未就绪，本次仅混入真实无版权 BGM（无旁白）。"
+                mux_ok = True
+            else:
+                audio_note = f"BGM 混音失败：{(mux_proc.stderr or '')[-200:]}"
         else:
-            bgm_label = "silent-no-bgm-configured"
+            bgm_label = "silent-no-audio-source"
+            audio_note = "未检测到 edge-tts 且无真实 BGM 源，回落为无声版。"
         voice_mp3.unlink(missing_ok=True)
+
+        # 用 ffprobe 验证最终文件确实含音轨，按真实状态标记 done / degraded
+        ap = subprocess.run([
+            om_runtime["ffprobe_path"], "-v", "error", "-select_streams", "a",
+            "-show_entries", "stream=codec_name", "-of", "csv=p=0", str(out_mp4),
+        ], capture_output=True, text=True)
+        has_final_audio = bool(ap.stdout.strip())
+        if mux_ok and has_final_audio and has_voice:
+            final_status = "done"
+        elif has_final_audio:
+            final_status = "degraded"
+        else:
+            final_status = "degraded" if bgm_label == "silent-no-audio-source" else "failed"
+    else:
+        audio_note = "按要求输出无声版。"
+        final_status = "done"
 
     cover_9x16 = item_dir / "cover-9x16.jpg"
     cover_3x4 = item_dir / "cover-3x4.jpg"
@@ -315,12 +364,14 @@ def run_one_item(
         "id": item_id,
         "type": "motion",
         "type_zh": TYPE_DISPLAY["motion"],
+        "motion_style": chosen_style,
         "title": item.get("title", ""),
-        "status": "done",
+        "status": final_status,
         "mp4": str(out_mp4),
         "silent_mp4": str(silent_mp4) if silent_mp4.exists() else "",
         "voice": voice_label,
         "bgm": bgm_label,
+        "audio_note": audio_note,
         "cover_9x16": str(cover_9x16) if cover_9x16.exists() else "",
         "cover_3x4": str(cover_3x4) if cover_3x4.exists() else "",
     }
@@ -396,18 +447,24 @@ def main() -> None:
     args = parser.parse_args()
 
     manifest = json.loads(Path(args.manifest).read_text(encoding="utf-8"))
-    items = manifest.get("items", manifest if isinstance(manifest, list) else [])
+    items = manifest if isinstance(manifest, list) else manifest.get("items", [])
     if not items:
         raise ValueError("manifest 中没有 items 条目")
 
-    # 1. 全批合规硬拦截 + 批内查重 + 默认 50/50 类型分配（若条目未显式指定 type）
+    # 1. 全批合规硬拦截 + ID 唯一性校验 + 批内查重 + 默认 50/50 类型分配
     seen_hashes = set()
+    seen_ids = set()
     compliance_errors = []
     for idx, it in enumerate(items):
-        it.setdefault("id", f"V{idx+1:03d}")
+        raw_id = it.get("id") or f"V{idx+1:03d}"
+        safe_id = media_manager.sanitize_slug(raw_id, fallback=f"V{idx+1:03d}")
+        if safe_id in seen_ids:
+            compliance_errors.append(f"条目 ID 重复：{safe_id}")
+        seen_ids.add(safe_id)
+        it["id"] = safe_id
         if not it.get("type"):
             it["type"] = "大字报" if idx % 2 == 0 else "动效片"
-        it["slug"] = it.get("slug") or it["id"].lower()
+        it["slug"] = media_manager.sanitize_slug(it.get("slug") or safe_id.lower(), fallback=safe_id.lower())
         hits = check_compliance(it)
         if hits:
             compliance_errors.append(f"{it['id']} 命中红线词：{', '.join(hits)}")
@@ -485,22 +542,25 @@ def main() -> None:
             for fut in concurrent.futures.as_completed(futs):
                 res = fut.result()
                 progress[res["id"]] = res
-                progress_path.write_text(json.dumps(progress, ensure_ascii=False, indent=2), encoding="utf-8")
+                media_manager.atomic_write_json(progress_path, progress)
 
     for it in todo_motion:
         res = run_one_item(it, out_root, om_runtime, args.silent, args.bg_dir, args.bgm_dir)
         progress[res["id"]] = res
-        progress_path.write_text(json.dumps(progress, ensure_ascii=False, indent=2), encoding="utf-8")
+        media_manager.atomic_write_json(progress_path, progress)
 
     ordered = [progress[it["id"]] for it in items if it["id"] in progress]
     review_html = write_review_html(out_root, ordered)
 
+    failed_cnt = sum(1 for r in ordered if r["status"] == "failed")
+    degraded_cnt = sum(1 for r in ordered if r["status"] == "degraded")
     summary = {
-        "ok": True,
+        "ok": failed_cnt == 0,
         "total": len(ordered),
         "done": sum(1 for r in ordered if r["status"] == "done"),
+        "degraded": degraded_cnt,
         "pending_motion_engine": sum(1 for r in ordered if r["status"] == "pending_motion_engine"),
-        "failed": sum(1 for r in ordered if r["status"] == "failed"),
+        "failed": failed_cnt,
         "review_html": str(review_html),
         "progress_json": str(progress_path),
     }

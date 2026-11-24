@@ -106,8 +106,8 @@ def load_ledger(ledger_path: Path) -> dict:
 
 
 def save_ledger(ledger_path: Path, data: dict) -> None:
-    ledger_path.parent.mkdir(parents=True, exist_ok=True)
-    ledger_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    with media_manager.file_lock(ledger_path.with_suffix(".lock"), timeout=15.0):
+        media_manager.atomic_write_json(ledger_path, data)
 
 
 def pick_unique_bg_segment(
@@ -544,7 +544,7 @@ def main() -> None:
     parser.add_argument("--bg-source", choices=["both", "local", "online"], help="背景来源：both(本地+在线混合) / local / online")
     parser.add_argument("--bgm", help="指定背景音乐文件（支持 mp3/m4a/wav 或带音轨的 mp4）")
     parser.add_argument("--bgm-dir", help="BGM 素材池目录（不传则自动读取本机记忆目录 + 在线缓存）")
-    parser.add_argument("--bgm-volume", type=float, default=0.85, help="背景音乐音量倍率（默认 0.85）")
+    parser.add_argument("--bgm-volume", type=float, default=0.12, help="背景音乐音量倍率（默认 0.12，与全 Skill 12%% 音频口径一致）")
     parser.add_argument("--silent", action="store_true", help="强制导出无声版（不加任何背景音乐）")
     parser.add_argument("--ambient-fallback", action="store_true", help="无真实 BGM 时使用内置合成和弦兜底（默认关闭，改出干净无声版）")
     parser.add_argument("--ledger", help="防重账本 JSON 路径（默认使用全局 ~/.yidehai-video/used_history.json）")
@@ -560,6 +560,9 @@ def main() -> None:
     body_lines = body if isinstance(body, list) else [l.strip() for l in body.splitlines() if l.strip()]
     question = job.get("question", "").strip()
     pill = job.get("pill", "亿德海 · 5公斤起专人免费上门").strip()
+    hits = media_manager.check_forbidden_terms([title, "\n".join(body_lines), question, pill, str(job.get("publish_copy", ""))])
+    if hits:
+        raise ValueError(f"合规硬红线拦截！大字报命中禁用词：{', '.join(hits)}")
     theme_key = job.get("theme", random.choice(list(THEMES.keys())))
     if theme_key not in THEMES:
         raise ValueError(f"未知主题 {theme_key}，可选：{list(THEMES.keys())}")
@@ -599,12 +602,14 @@ def main() -> None:
             bg_video, bg_start = picked
 
     now = datetime.now()
-    slug = job.get("slug", f"poster-{now.strftime('%Y%m%d-%H%M%S')}")
-    out_dir = Path(args.out_dir)
+    slug = media_manager.sanitize_slug(job.get("slug", f"poster-{now.strftime('%Y%m%d-%H%M%S')}"), fallback="poster")
+    base_out = Path(args.out_dir).expanduser().resolve()
     if args.organize_by_date:
-        out_dir = out_dir / now.strftime("%Y-%m-%d") / f"{now.strftime('%Y%m%d-%H%M%S')}-大字报-{slug}"
+        out_dir = media_manager.safe_child_path(base_out, now.strftime("%Y-%m-%d"), f"{now.strftime('%Y%m%d-%H%M%S')}-大字报-{slug}")
+    else:
+        out_dir = base_out
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_mp4 = out_dir / f"{slug}.mp4"
+    out_mp4 = media_manager.safe_child_path(out_dir, f"{slug}.mp4")
 
     bgm_audio: Path | None = None
     bgm_start = 0.0
