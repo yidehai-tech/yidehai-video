@@ -4,13 +4,14 @@
 
 ---
 
-## 一、支持 6 大中文视频形态（直接说中文，不用记英文工具名）
+## 一、支持 7 大中文视频形态（直接说中文，不用记英文工具名）
 
 | 形态 | 费用 | 适用场景 |
 | :--- | :--- | :--- |
 | **`大字报`** | 免费 0 点 | 8.8 秒风景空镜 + 满屏大字，9 秒直出，高频日更主力 |
-| **`动效片`** | 免费 0 点 | 10 秒多屏动态卡片 + 图形动效（OpenMotion） |
+| **`动效片`** | 免费 0 点 | 10 秒多屏动态卡片 + 图形动效 + AI 旁白（OpenMotion） |
 | **`实拍混剪`** | 免费 0 点 | 本地实拍视频/图片（全局防重）+ 免费干声旁白 → HeyGen HyperFrames 渲染 |
+| **`图文故事片`** | 按所选图源定（可 0 点） | 4–6 张分镜图平滑推镜短视频 + **小红书 3:4 轮播套图（一鱼两吃）**，图源由你 4 选 1（宿主内置生图 / 即梦 / 免费 API / 本地图片） |
 | **`即梦片`** | 扣即梦积分（显式点名才用） | `dreamina` CLI 全自动，支持「纯即梦」和「省积分混剪（即梦 5s 开场 + 本地实拍）」 |
 | **`Flow片`** | 扣 Google 点数（显式点名才用） | `ego-lite` 全自动 Google Flow，支持 `Omni 1.2 Flash` 口播与 `Veo 3.1 Lite` 10 点省点混剪 |
 | **`口播包装`** | 免费 0 点 | 真人实拍口播视频 + MotionGit 官方免费模板包装 |
@@ -52,11 +53,13 @@ yidehai-video-skill/
 │   ├── 07-poster-batch-field-notes.md     # 大字报批量出片实战避坑指南
 │   ├── 08-ai-video-engines.md             # 即梦 CLI / Google Flow(ego-lite) / 实拍混剪 / MotionGit 实操手册
 │   ├── 09-motion-batch-field-notes.md     # 动效片批量实战手册（5 套浅色配色轮换 / 旁白+12% BGM 混音 / 子合成 CSS 避坑）
+│   ├── 10-storybook-workflow.md           # 图文故事片一鱼两吃手册（图源 4 选 1 护栏 + 推镜视频 + 小红书 3:4 轮播）
 │   └── media-catalog.json                 # 在线免版权 BGM 备用清单（GitHub Releases 托管，需实测可用性）
 └── scripts/
-    ├── media_manager.py                   # 本地目录记忆、实拍素材防重抽取与在线空镜/BGM 拉取
+    ├── media_manager.py                   # 本地目录记忆、实拍素材防重抽取与在线空镜/图片/BGM 拉取
     ├── render_poster.py                   # 离线极速大字报渲染器（成片 + 双封面）
     ├── package_ai_video.py                # 通用 AI/实拍视频包装器（HeyGen HyperFrames · 无品牌浮条）
+    ├── storybook_builder.py               # 图文故事片一鱼两吃构建器（推镜成片 + 小红书 3:4 轮播套图）
     ├── dreamina_runner.py                 # 即梦官方 CLI 防呆调度器（防重复扣分 + 断点续查）
     ├── batch_runner.py                    # 批量出片调度器与可视化审片台
     ├── motion_templates.py                # 动效片备选母版

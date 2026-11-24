@@ -131,6 +131,7 @@ CONFIG_PATH = APP_DIR / "config.json"
 DEFAULT_LEDGER_PATH = APP_DIR / "used_history.json"
 CACHE_BG_DIR = APP_DIR / "cache" / "bg"
 CACHE_BGM_DIR = APP_DIR / "cache" / "bgm"
+CACHE_IMG_DIR = APP_DIR / "cache" / "images"
 
 DEFAULT_SCENIC_QUERIES = [
     "nature forest sunlight",
@@ -198,7 +199,9 @@ def load_config() -> dict:
     data.setdefault("ledger_path", str(DEFAULT_LEDGER_PATH))
     data.setdefault("cache_bg_dir", str(CACHE_BG_DIR))
     data.setdefault("cache_bgm_dir", str(CACHE_BGM_DIR))
+    data.setdefault("cache_img_dir", str(CACHE_IMG_DIR))
     data.setdefault("bg_source", "both")  # both | local | online
+    data.setdefault("default_image_source", "")  # "" (ask) | host_tool | dreamina | free_api | local
     data.setdefault("initialized", False)
     data.setdefault("onboarding_dismissed", False)
     return data
@@ -416,9 +419,66 @@ def fetch_from_jamendo(client_id: str, count: int, target_dir: Path) -> list[Pat
     return downloaded
 
 
+def fetch_stock_images(pexels_key: str, pixabay_key: str, query: str, count: int, target_dir: Path) -> list[Path]:
+    """可选 0 积分免费图片 API：从 Pexels / Pixabay 拉取无版权竖屏生活/家居图片供图文故事片使用。"""
+    target_dir.mkdir(parents=True, exist_ok=True)
+    downloaded: list[Path] = []
+    if pexels_key and len(downloaded) < count:
+        q = urllib.parse.urlencode({"query": query, "orientation": "portrait", "per_page": min(max(count * 2, 6), 20)})
+        req = urllib.request.Request(
+            f"https://api.pexels.com/v1/search?{q}",
+            headers={"Authorization": pexels_key, "User-Agent": "yidehai-video-skill/2.6"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            photos = data.get("photos", [])
+            random.shuffle(photos)
+            for ph in photos:
+                if len(downloaded) >= count:
+                    break
+                pid = ph.get("id")
+                src = (ph.get("src") or {}).get("large2x") or (ph.get("src") or {}).get("portrait") or (ph.get("src") or {}).get("large")
+                if not src:
+                    continue
+                dest = target_dir / f"pexels-img-{pid}.jpg"
+                if download_file(src, dest, timeout=30):
+                    downloaded.append(dest)
+        except Exception:
+            pass
+
+    if pixabay_key and len(downloaded) < count:
+        q = urllib.parse.urlencode({"key": pixabay_key, "q": query, "image_type": "photo", "orientation": "vertical", "per_page": min(max(count * 2, 6), 20)})
+        req = urllib.request.Request(f"https://pixabay.com/api/?{q}", headers={"User-Agent": "yidehai-video-skill/2.6"})
+        try:
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            hits = data.get("hits", [])
+            random.shuffle(hits)
+            for h in hits:
+                if len(downloaded) >= count:
+                    break
+                hid = h.get("id")
+                src = h.get("largeImageURL") or h.get("webformatURL")
+                if not src:
+                    continue
+                dest = target_dir / f"pixabay-img-{hid}.jpg"
+                if download_file(src, dest, timeout=30):
+                    downloaded.append(dest)
+        except Exception:
+            pass
+    return downloaded
+
+
 def ensure_online_media(kind: str, count: int = 2, query: str | None = None, cfg: dict | None = None) -> list[Path]:
     """按需拉取在线免版权素材到本机缓存目录（先 0 配置清单，再可选免费 API）。"""
     cfg = cfg or load_config()
+    if kind == "stock_images":
+        q = query or "tidy closet folding clothes home"
+        pexels_key = os.environ.get("PEXELS_API_KEY") or cfg.get("pexels_api_key") or ""
+        pixabay_key = os.environ.get("PIXABAY_API_KEY") or cfg.get("pixabay_api_key") or ""
+        return fetch_stock_images(pexels_key, pixabay_key, q, count, Path(cfg.get("cache_img_dir") or CACHE_IMG_DIR))
+
     target_dir = Path(cfg["cache_bg_dir"] if kind == "bg_videos" else cfg["cache_bgm_dir"])
     target_dir.mkdir(parents=True, exist_ok=True)
 
@@ -457,14 +517,15 @@ def main() -> None:
     p_cfg.add_argument("--add-bgm-dir", help="添加并记住本地免版权轻音乐目录")
     p_cfg.add_argument("--set-motion-templates-dir", help="设置本机 MotionGit 免费口播模板目录")
     p_cfg.add_argument("--bg-source", choices=["both", "local", "online"], help="背景来源策略：both(混合) / local / online")
+    p_cfg.add_argument("--set-image-source", choices=["ask", "host_tool", "dreamina", "free_api", "local"], help="图文故事片默认生图来源（ask=每次询问 / host_tool=宿主内置生图 / dreamina=即梦CLI / free_api=免费图库API / local=本地图片）")
     p_cfg.add_argument("--set-pexels-key", help="保存可选 Pexels 免费 API Key 到本机配置")
     p_cfg.add_argument("--set-pixabay-key", help="保存可选 Pixabay 免费 API Key 到本机配置")
     p_cfg.add_argument("--set-jamendo-id", help="保存可选 Jamendo 免费音乐 Client ID 到本机配置")
     p_cfg.add_argument("--mark-initialized", action="store_true", help="标记首次素材与环境初始化已完成，后续不再主动弹窗")
     p_cfg.add_argument("--dismiss-onboarding", action="store_true", help="标记用户已明确跳过首次引导，后续不再提醒")
 
-    p_fetch = sub.add_parser("fetch", help="按需拉取在线免版权风景空镜或 BGM 到本机缓存")
-    p_fetch.add_argument("--kind", choices=["bg_videos", "bgm_tracks"], default="bg_videos")
+    p_fetch = sub.add_parser("fetch", help="按需拉取在线免版权风景空镜、生活图片或 BGM 到本机缓存")
+    p_fetch.add_argument("--kind", choices=["bg_videos", "bgm_tracks", "stock_images"], default="bg_videos")
     p_fetch.add_argument("--count", type=int, default=3)
     p_fetch.add_argument("--query", help="可选英文风景检索词（仅 API 模式使用）")
 
@@ -500,6 +561,9 @@ def main() -> None:
             changed = True
         if args.bg_source:
             cfg["bg_source"] = args.bg_source
+            changed = True
+        if args.set_image_source:
+            cfg["default_image_source"] = "" if args.set_image_source == "ask" else args.set_image_source
             changed = True
         if args.set_pexels_key:
             cfg["pexels_api_key"] = args.set_pexels_key.strip()
