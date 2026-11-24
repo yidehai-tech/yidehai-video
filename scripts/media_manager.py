@@ -41,11 +41,13 @@ def check_forbidden_terms(texts: list[str]) -> list[str]:
 
 
 def sanitize_slug(raw: str, fallback: str = "video") -> str:
-    """跨平台单段安全文件名（剔除路径分隔符、Windows 非法字符与保留名）。"""
+    """跨平台单段安全文件名（剔除路径分隔符、Windows 非法字符与保留设备名含带扩展名变体）。"""
     s = str(raw or "").strip()
     s = re.sub(r'[\\/:*?"<>|\x00-\x1f]+', "-", s)
     s = re.sub(r"\.{2,}", ".", s).strip(" .-")
-    if not s or s.upper() in {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)), *(f"LPT{i}" for i in range(1, 10))}:
+    stem = s.split(".", 1)[0].upper() if s else ""
+    reserved = {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)), *(f"LPT{i}" for i in range(1, 10))}
+    if not s or stem in reserved:
         return fallback
     return s[:80]
 
@@ -77,9 +79,21 @@ def atomic_write_json(path: Path, data: Any) -> None:
         raise
 
 
+def _pid_alive(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+        return True
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+
+
 @contextlib.contextmanager
 def file_lock(lock_path: Path, timeout: float = 15.0, stale_seconds: float = 600.0) -> Iterator[None]:
-    """基于 O_CREAT|O_EXCL 的跨平台文件锁（支持超时与陈旧锁清理）。"""
+    """基于 O_CREAT|O_EXCL 的跨平台文件锁（活跃 PID 绝不误删，仅清理已退出的陈旧锁）。"""
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     deadline = time.monotonic() + timeout
     fd: int | None = None
@@ -92,9 +106,16 @@ def file_lock(lock_path: Path, timeout: float = 15.0, stale_seconds: float = 600
             break
         except FileExistsError:
             try:
-                if time.time() - lock_path.stat().st_mtime > stale_seconds:
-                    lock_path.unlink(missing_ok=True)
-                    continue
+                st = lock_path.stat()
+                if time.time() - st.st_mtime > stale_seconds:
+                    holder_pid = 0
+                    try:
+                        holder_pid = int(lock_path.read_text(encoding="utf-8").split(":", 1)[0].strip())
+                    except Exception:
+                        holder_pid = 0
+                    if not _pid_alive(holder_pid):
+                        lock_path.unlink(missing_ok=True)
+                        continue
             except FileNotFoundError:
                 continue
             if time.monotonic() >= deadline:

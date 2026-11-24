@@ -102,7 +102,7 @@ def cmd_submit(args: argparse.Namespace) -> None:
     state_file = task_dir / "dreamina_task.json"
     lock_file = task_dir / ".dreamina.lock"
 
-    with file_lock(lock_file, timeout=15.0):
+    with file_lock(lock_file, timeout=15.0, stale_seconds=max(3600.0, float(args.poll or 0) + 300.0)):
         prev: dict[str, Any] | None = None
         if state_file.exists():
             try:
@@ -261,12 +261,19 @@ def cmd_query(args: argparse.Namespace) -> None:
 
     if state_file.exists():
         with file_lock(task_dir / ".dreamina.lock", timeout=15.0):
-            state["submit_id"] = submit_id
-            state["gen_status"] = info.get("gen_status") or state.get("gen_status")
-            state["last_query_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+            # 锁内重读最新状态并复核 submit_id，防止迟到的查询覆盖新授权提交
+            latest = json.loads(state_file.read_text(encoding="utf-8"))
+            latest_id = latest.get("submit_id")
+            if latest_id and latest_id != submit_id:
+                raise ValueError(
+                    f"状态文件已被新提交更新（current={latest_id} != queried={submit_id}），已拒绝用旧查询结果覆盖。"
+                )
+            latest["submit_id"] = submit_id
+            latest["gen_status"] = info.get("gen_status") or latest.get("gen_status")
+            latest["last_query_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
             if info.get("downloaded_files"):
-                state["downloaded_files"] = info["downloaded_files"]
-            atomic_write_json(state_file, state)
+                latest["downloaded_files"] = info["downloaded_files"]
+            atomic_write_json(state_file, latest)
 
     print(json.dumps({"submit_id": submit_id, **info}, ensure_ascii=False, indent=2))
 

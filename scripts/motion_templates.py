@@ -365,7 +365,7 @@ def build_motion_project(item: dict, proj_dir: Path, fallback_index: int = 0) ->
 
     style = normalize_motion_style(item.get("motion_style"), fallback_index=fallback_index)
     th = pick_light_theme(item, fallback_index=fallback_index)
-    duration = float(item.get("duration", 10.0))
+    duration = max(3.0, float(item.get("duration", 10.0)))
     title = str(item.get("title", "亿德海旧衣回收")).replace("\n", " ")
 
     _write_root_index(proj_dir, title, duration, th["bg2"])

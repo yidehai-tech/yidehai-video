@@ -338,15 +338,20 @@ def run_one_item(
             audio_note = "未检测到 edge-tts 且无真实 BGM 源，回落为无声版。"
         voice_mp3.unlink(missing_ok=True)
 
-        # 用 ffprobe 验证最终文件确实含音轨，按真实状态标记 done / degraded
+        # 用 ffprobe 验证最终文件确实含音轨，按真实交付完整度标记 done / degraded / failed
         ap = subprocess.run([
             om_runtime["ffprobe_path"], "-v", "error", "-select_streams", "a",
             "-show_entries", "stream=codec_name", "-of", "csv=p=0", str(out_mp4),
         ], capture_output=True, text=True)
         has_final_audio = bool(ap.stdout.strip())
-        if mux_ok and has_final_audio and has_voice:
+        if not has_final_audio:
+            voice_label = "none"
+            if bgm_label not in ("silent", "silent-no-audio-source"):
+                bgm_label = "mux-failed"
+        if mux_ok and has_final_audio and has_voice and picked_bgm is not None:
             final_status = "done"
         elif has_final_audio:
+            # 仅旁白缺 BGM 或仅 BGM 缺旁白：标为 degraded，允许补齐音源后续跑重混
             final_status = "degraded"
         else:
             final_status = "degraded" if bgm_label == "silent-no-audio-source" else "failed"
@@ -389,11 +394,14 @@ def write_review_html(out_root: Path, results: list[dict]) -> Path:
             f'<video controls preload="none" poster="{html.escape(rel_cov)}" src="{html.escape(rel_mp4)}"></video>'
             if rel_mp4 else f'<div class="placeholder">{html.escape(r.get("note") or r.get("error") or status)}</div>'
         )
+        note_text = str(r.get("audio_note") or r.get("note") or r.get("error") or "").strip()
+        note_html = f'<div class="note">{html.escape(note_text)}</div>' if note_text else ""
         cards.append(f"""
         <div class="card" data-type="{html.escape(r.get('type',''))}" data-status="{status}">
           <div class="meta"><span class="tag">{badge}</span><span class="st {status}">{status}</span><span class="cid">{html.escape(r['id'])}</span></div>
           {media_html}
           <div class="title">{title}</div>
+          {note_html}
         </div>""")
 
     page = f"""<!DOCTYPE html>
@@ -408,7 +416,8 @@ def write_review_html(out_root: Path, results: list[dict]) -> Path:
   .card {{ background: #17201c; border: 1px solid #263830; border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }}
   .meta {{ display: flex; gap: 6px; align-items: center; font-size: 12px; }}
   .tag {{ background: #264d3b; padding: 2px 8px; border-radius: 999px; }}
-  .st.done {{ color: #69db7c; }} .st.pending_motion_engine {{ color: #ffd43b; }} .st.failed {{ color: #ff6b6b; }}
+  .st.done {{ color: #69db7c; }} .st.degraded {{ color: #ffa94d; }} .st.pending_motion_engine {{ color: #ffd43b; }} .st.failed {{ color: #ff6b6b; }}
+  .note {{ font-size: 12px; color: #ffa94d; line-height: 1.4; }}
   .cid {{ margin-left: auto; color: #8fa399; }}
   video {{ width: 100%; aspect-ratio: 9/16; background: #000; border-radius: 8px; }}
   .placeholder {{ width: 100%; aspect-ratio: 9/16; background: #111815; border-radius: 8px; display: flex; align-items: center; justify-content: center; padding: 16px; text-align: center; font-size: 13px; color: #ffd43b; box-sizing: border-box; }}
@@ -458,9 +467,9 @@ def main() -> None:
     for idx, it in enumerate(items):
         raw_id = it.get("id") or f"V{idx+1:03d}"
         safe_id = media_manager.sanitize_slug(raw_id, fallback=f"V{idx+1:03d}")
-        if safe_id in seen_ids:
-            compliance_errors.append(f"条目 ID 重复：{safe_id}")
-        seen_ids.add(safe_id)
+        if safe_id.lower() in seen_ids:
+            compliance_errors.append(f"条目 ID 重复（忽略大小写）：{safe_id}")
+        seen_ids.add(safe_id.lower())
         it["id"] = safe_id
         if not it.get("type"):
             it["type"] = "大字报" if idx % 2 == 0 else "动效片"
@@ -554,12 +563,13 @@ def main() -> None:
 
     failed_cnt = sum(1 for r in ordered if r["status"] == "failed")
     degraded_cnt = sum(1 for r in ordered if r["status"] == "degraded")
+    pending_cnt = sum(1 for r in ordered if r["status"] == "pending_motion_engine")
     summary = {
-        "ok": failed_cnt == 0,
+        "ok": failed_cnt == 0 and degraded_cnt == 0 and pending_cnt == 0,
         "total": len(ordered),
         "done": sum(1 for r in ordered if r["status"] == "done"),
         "degraded": degraded_cnt,
-        "pending_motion_engine": sum(1 for r in ordered if r["status"] == "pending_motion_engine"),
+        "pending_motion_engine": pending_cnt,
         "failed": failed_cnt,
         "review_html": str(review_html),
         "progress_json": str(progress_path),

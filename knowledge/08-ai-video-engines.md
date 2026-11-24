@@ -97,12 +97,16 @@
   > `9:16 vertical smartphone UGC shot, realistic Chinese {home / entryway / bedroom} scene, natural daylight, smooth handheld realism. A Chinese {person} {opening a packed wardrobe / neatly folding old winter jackets and placing them with old shoes and bags into a large woven bag}, focused and natural movement, mouth closed, not speaking. No on-screen text, no subtitles, no watermarks, no logos.`
 
 ### 3. `ego-browser` 实操防踩坑铁律（含跨会话防重扣点持久化）
-- **费用核对与点击前落盘（P0 防重复扣点硬规则）**：
-  1. 点击 `button[aria-label="开始生成"]` **之前**，必须先读页面 DOM 核对 `生成将消耗 X 个点数` 与预期一致（`24 / 30 / 10`），并统计当前项目网格页中已有的 `img[alt="生成的视频缩略图"]` 数量与 `src` 列表；
-  2. **先在任务目录写入 `flow_task.json`**（记录 `project_url`、`model`、`quoted_credits`、`existing_thumbnails_count`、`submitted_at`、`status: "submitting"`），然后再执行点击；
-  3. 异常高价立刻中止并告知成员；完成后务必调用 `task.finish({ keep: [] })` 关闭 TaskSpace。
-- **跨会话中断恢复规则**：
-  - 若浏览器断开、WorkBuddy 重启或点击后状态不明，**严禁直接再次点击生成**；必须先读取任务目录的 `flow_task.json`，回到同一个 `project_url` 比对网格中是否新增了缩略图（数量 > `existing_thumbnails_count` 且 URL 不在旧列表中）。若无法唯一匹配，立刻暂停并向成员汇报，等待人工确认。
+- **费用核对与点击前强制前置检查（P0 防重复扣点硬规则）**：
+  1. **每次点击前必查本地任务锁**：先检查任务目录是否已存在 `flow_task.json` 且 `status != "done"`；若已存在未终结记录，**严禁再次点击生成**，必须直接进入下方恢复流程；
+  2. 点击 `button[aria-label="开始生成"]` **之前**，必须先读页面 DOM 核对 `生成将消耗 X 个点数` 与预期一致（`24 / 30 / 10`），并采集当前项目网格页中所有已有的 `img[alt="生成的视频缩略图"]` 数量与完整 `src` URL 列表；
+  3. **先在任务目录原子写入 `flow_task.json`**（必含字段：`task_id`、`project_url`、`model`、`quoted_credits`、`existing_thumbnails_count`、`existing_thumbnail_urls`、`submitted_at`、`status: "submitting"`），然后再执行点击；
+  4. 异常高价立刻中止并告知成员；完成后务必调用 `task.finish({ keep: [] })` 关闭 TaskSpace。
+- **跨会话中断恢复与终态闭环规则**：
+  - 若浏览器断开、WorkBuddy 重启或点击后状态不明，**严禁直接再次点击生成**；必须读取 `flow_task.json` 回到同一个 `project_url`，将当前网格缩略图 URL 集合减去 `existing_thumbnail_urls`：
+    - 仅当差集**恰好新增 1 条**且对应任务属于当前会话时，才进入详情页下载 720p 原片；
+    - 若差集为空、新增多条或无法唯一归属本次提交，立刻暂停并向成员汇报，等待人工确认，绝不自动重试或盲目下载。
+  - 720p 原片下载并通过 `ffprobe` 校验后，立即将 `flow_task.json` 更新为 `status: "done"` 并记录 `downloaded_file`，完成闭环。
 - **Omni 1.2 Flash（有声口播）**：
   1. 打开 `button[aria-label="设置"]`，确认 **`button[name="return-silent-videos"]` 为关闭（OFF）**；
   2. 模式选 **视频 + 竖屏（9:16）+ `Omni 1.2 Flash`（720p，严禁 360p）**；
