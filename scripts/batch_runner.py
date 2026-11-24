@@ -211,14 +211,40 @@ def run_one_item(
     if proc.returncode != 0 or not out_mp4.exists():
         return {"id": item_id, "type": "motion", "type_zh": TYPE_DISPLAY["motion"], "title": item.get("title", ""), "status": "failed", "error": (proc.stderr or proc.stdout).strip()[-400:]}
 
-    # 默认优先给动效片混入真实防重背景音乐；若未配置任何真实 BGM，才回落干净无声版
-    # （不再强塞合成和弦），且必须在交付说明里写明「本次为无声版及原因」——无声版不是默认。
+    # 默认给动效片合成「中文 AI 旁白（Edge-TTS）+ 12% 真实无版权 BGM」有声版，并保留同配色无声版；
+    # 仅成员明确要求 --silent 或确无真实音源时回落无声版，并在结果里写明原因。
     bgm_label = "silent"
+    voice_label = "none"
+    slug_name = item.get("slug", item_id)
+    silent_mp4 = item_dir / f"{slug_name}-无声版.mp4"
     if not item.get("silent", silent_default):
+        shutil.copy2(out_mp4, silent_mp4)
         cfg = media_manager.load_config()
         ledger_path = Path(cfg["ledger_path"])
         ledger = render_poster.load_ledger(ledger_path)
         duration = float(item.get("duration", 10.0))
+
+        # 1) 可选合成中文旁白（优先用 voiceover_text，否则取标题+正文前 55 字）
+        vo_text = str(item.get("voiceover_text") or "").strip()
+        if not vo_text:
+            body_raw = item.get("body", [])
+            body_str = "".join(body_raw) if isinstance(body_raw, list) else str(body_raw)
+            vo_text = (str(item.get("title", "")).replace("\n", "，") + "。" + body_str.replace("\n", "")).strip()[:55]
+        voice_mp3 = item_dir / "_voice.mp3"
+        has_voice = False
+        if vo_text:
+            edge_bin = shutil.which("edge-tts") or shutil.which("edge-tts.exe")
+            tts_cmd = (
+                [edge_bin, "--voice", "zh-CN-XiaoxiaoNeural", "--rate=+10%", "--text", vo_text, "--write-media", str(voice_mp3)]
+                if edge_bin else
+                [sys.executable, "-m", "edge_tts", "--voice", "zh-CN-XiaoxiaoNeural", "--rate=+10%", "--text", vo_text, "--write-media", str(voice_mp3)]
+            )
+            tts_proc = subprocess.run(tts_cmd, capture_output=True, text=True)
+            if tts_proc.returncode == 0 and voice_mp3.exists() and voice_mp3.stat().st_size > 1000:
+                has_voice = True
+                voice_label = "zh-CN-XiaoxiaoNeural"
+
+        # 2) 抽取真实无版权 BGM（12% 音量）
         bgm_dirs = [Path(bgm_dir_override)] if bgm_dir_override else (
             [Path(cfg["cache_bgm_dir"])] + [Path(d) for d in cfg.get("local_bgm_dirs", [])]
         )
@@ -226,17 +252,49 @@ def run_one_item(
         if picked_bgm is None:
             media_manager.ensure_online_media("bgm_tracks", count=2, cfg=cfg)
             picked_bgm = render_poster.pick_unique_bgm([Path(cfg["cache_bgm_dir"])], duration, ledger)
-        if picked_bgm is not None:
+
+        muxed_mp4 = item_dir / f"{slug_name}.muxed.mp4"
+        fade_out_st = max(0.0, duration - 0.9)
+        if has_voice and picked_bgm is not None:
             bgm_src, bgm_start = picked_bgm
-            bgm_label = f"{bgm_src.name}@{bgm_start:.1f}s"
-            muxed_mp4 = item_dir / f"{item.get('slug', item_id)}.muxed.mp4"
+            bgm_label = f"{bgm_src.name}@{bgm_start:.1f}s(12%)"
+            # 探测旁白时长并按 9.4s 计算 atempo 防止超时吞字
+            vp = subprocess.run([
+                om_runtime["ffprobe_path"], "-v", "error", "-show_entries", "format=duration",
+                "-of", "default=noprint_wrappers=1:nokey=1", str(voice_mp3),
+            ], capture_output=True, text=True)
+            try:
+                v_dur = float(vp.stdout.strip())
+            except Exception:
+                v_dur = 9.0
+            tempo = min(1.5, max(1.0, v_dur / max(1.0, duration - 0.6)))
+            mux_proc = subprocess.run([
+                om_runtime["ffmpeg_path"], "-y", "-v", "error",
+                "-i", str(out_mp4),
+                "-i", str(voice_mp3),
+                "-stream_loop", "-1", "-ss", f"{bgm_start:.2f}", "-t", f"{duration:.2f}", "-i", str(bgm_src),
+                "-filter_complex",
+                f"[1:a]aresample=48000,atempo={tempo:.3f},volume=1.10,apad,atrim=0:{max(1.0, duration-0.4):.2f}[v];"
+                f"[2:a]aresample=48000,afade=t=in:st=0:d=0.6,afade=t=out:st={fade_out_st:.2f}:d=0.9,volume=0.12[b];"
+                f"[v][b]amix=inputs=2:normalize=0:duration=longest:dropout_transition=0,alimiter=limit=0.95[a]",
+                "-map", "0:v:0", "-map", "[a]",
+                "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+                "-t", f"{duration:.2f}", "-movflags", "+faststart",
+                str(muxed_mp4),
+            ], capture_output=True, text=True)
+            if mux_proc.returncode == 0 and muxed_mp4.exists():
+                muxed_mp4.replace(out_mp4)
+                render_poster.save_ledger(ledger_path, ledger)
+        elif picked_bgm is not None:
+            bgm_src, bgm_start = picked_bgm
+            bgm_label = f"{bgm_src.name}@{bgm_start:.1f}s(12%)"
             mux_proc = subprocess.run([
                 om_runtime["ffmpeg_path"], "-y", "-v", "error",
                 "-i", str(out_mp4),
                 "-stream_loop", "-1", "-ss", f"{bgm_start:.2f}", "-i", str(bgm_src),
                 "-map", "0:v:0", "-map", "1:a:0",
-                "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-ar", "44100", "-ac", "2",
-                "-af", f"volume=0.80,afade=t=in:st=0:d=0.25,afade=t=out:st={max(0, duration-0.7):.2f}:d=0.7",
+                "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2",
+                "-af", f"volume=0.12,afade=t=in:st=0:d=0.6,afade=t=out:st={fade_out_st:.2f}:d=0.9",
                 "-t", f"{duration:.2f}", "-movflags", "+faststart",
                 str(muxed_mp4),
             ], capture_output=True, text=True)
@@ -245,6 +303,7 @@ def run_one_item(
                 render_poster.save_ledger(ledger_path, ledger)
         else:
             bgm_label = "silent-no-bgm-configured"
+        voice_mp3.unlink(missing_ok=True)
 
     cover_9x16 = item_dir / "cover-9x16.jpg"
     cover_3x4 = item_dir / "cover-3x4.jpg"
@@ -259,6 +318,8 @@ def run_one_item(
         "title": item.get("title", ""),
         "status": "done",
         "mp4": str(out_mp4),
+        "silent_mp4": str(silent_mp4) if silent_mp4.exists() else "",
+        "voice": voice_label,
         "bgm": bgm_label,
         "cover_9x16": str(cover_9x16) if cover_9x16.exists() else "",
         "cover_3x4": str(cover_3x4) if cover_3x4.exists() else "",

@@ -33,7 +33,8 @@ from typing import Any
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
-from media_manager import DEFAULT_LEDGER_PATH, load_config, resolve_ffmpeg_tools  # noqa: E402
+from media_manager import DEFAULT_LEDGER_PATH, ensure_online_media, load_config, resolve_ffmpeg_tools  # noqa: E402
+import render_poster  # noqa: E402
 
 FORBIDDEN_TERMS = [
     "顺丰",
@@ -591,11 +592,13 @@ def record_used_footage(names: list[str]) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="亿德海 AI/实拍视频一键包装器（HeyGen HyperFrames · 无品牌浮条）")
+    parser = argparse.ArgumentParser(description="亿德海 AI/实拍视频一键包装器（HeyGen HyperFrames · 无品牌浮条 · 默认混入 12% 无版权 BGM）")
     parser.add_argument("--job", required=True, help="任务 JSON 路径")
     parser.add_argument("--out-dir", default="outputs", help="输出根目录")
     parser.add_argument("--organize-by-date", action="store_true", help="按 YYYY-MM-DD/YYYYMMDD-HHMMSS-<slug>/ 归档")
     parser.add_argument("--quality", choices=["draft", "looks", "delivery"], default="delivery", help="HyperFrames 渲染画质")
+    parser.add_argument("--silent", action="store_true", help="不叠加背景音乐（保留纯人声干声，供平台挂载热门音乐）")
+    parser.add_argument("--bgm-dir", default="", help="可选，指定免版权背景音乐目录")
     args = parser.parse_args()
 
     job = json.loads(Path(args.job).expanduser().read_text(encoding="utf-8"))
@@ -640,6 +643,54 @@ def main() -> None:
     final_mp4 = out_dir / f"{slug}.mp4"
     run(hf_cmd + ["render", "--quality", args.quality, "-o", str(final_mp4)], cwd=proj_dir, env=env)
 
+    # 1.5) 统一音频口径（v2.3.2）：默认叠加 12% 真实无版权 BGM（amix normalize=0 + alimiter）；
+    # 仅显式 --silent 或本机确无真实 BGM 时保留纯人声干声版，并写明原因。
+    bgm_label = "dry-voice-only"
+    audio_note = ""
+    want_silent = bool(args.silent or job.get("silent"))
+    if not want_silent:
+        cfg = load_config()
+        ledger_path = Path(cfg.get("ledger_path") or DEFAULT_LEDGER_PATH)
+        ledger = render_poster.load_ledger(ledger_path)
+        bgm_dirs = [Path(args.bgm_dir)] if args.bgm_dir else (
+            [Path(cfg["cache_bgm_dir"])] + [Path(d) for d in cfg.get("local_bgm_dirs", [])]
+        )
+        picked_bgm = render_poster.pick_unique_bgm(bgm_dirs, duration, ledger)
+        if picked_bgm is None:
+            ensure_online_media("bgm_tracks", count=2, cfg=cfg)
+            picked_bgm = render_poster.pick_unique_bgm([Path(cfg["cache_bgm_dir"])], duration, ledger)
+        if picked_bgm is not None:
+            bgm_src, bgm_start = picked_bgm
+            dry_backup = out_dir / f"{slug}-干声无BGM版.mp4"
+            shutil.copy2(final_mp4, dry_backup)
+            muxed_mp4 = out_dir / f"{slug}.muxed.mp4"
+            fade_out_st = max(0.0, duration - 0.9)
+            mux_proc = subprocess.run([
+                ffmpeg, "-y", "-v", "error",
+                "-i", str(final_mp4),
+                "-stream_loop", "-1", "-ss", f"{bgm_start:.2f}", "-t", f"{duration:.2f}", "-i", str(bgm_src),
+                "-filter_complex",
+                f"[0:a]aresample=48000,volume=1.05[v];"
+                f"[1:a]aresample=48000,afade=t=in:st=0:d=0.6,afade=t=out:st={fade_out_st:.2f}:d=0.9,volume=0.12[b];"
+                f"[v][b]amix=inputs=2:normalize=0:duration=first:dropout_transition=0,alimiter=limit=0.95[a]",
+                "-map", "0:v:0", "-map", "[a]",
+                "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+                "-t", f"{duration:.2f}", "-movflags", "+faststart",
+                str(muxed_mp4),
+            ], capture_output=True, text=True)
+            if mux_proc.returncode == 0 and muxed_mp4.exists():
+                muxed_mp4.replace(final_mp4)
+                render_poster.save_ledger(ledger_path, ledger)
+                bgm_label = f"{bgm_src.name}@{bgm_start:.1f}s(12%)"
+            else:
+                audio_note = "本次因混音异常回落为纯人声干声版（无 BGM）。"
+        else:
+            bgm_label = "dry-voice-no-bgm-source"
+            audio_note = "本次因本机未配置且未能拉取到真实无版权 BGM，回落为纯人声干声版，发布时可挂平台热门轻音乐（10%-15%）。"
+    else:
+        bgm_label = "dry-voice-by-request"
+        audio_note = "按要求输出纯人声干声版（无 BGM），发布时可挂平台热门轻音乐。"
+
     # 2) 全片解码校验
     run([ffmpeg, "-v", "error", "-i", str(final_mp4), "-f", "null", "-"])
 
@@ -651,10 +702,12 @@ def main() -> None:
     # 4) 发布文案与元数据
     hashtags = " ".join(job.get("hashtags", ["#旧衣回收", "#断舍离", "#亿德海"]))
     ai_note = "⚠️ 发布提醒：本片含 AI 生成画面/配音，请按各平台要求勾选「AI 生成」声明。" if job.get("is_ai", True) else ""
+    audio_md = f"\n🔊 音频说明：{audio_note}\n" if audio_note else f"\n🔊 背景音乐：{bgm_label}\n"
     copy_md = (
         f"# {job.get('title', slug)}\n\n"
         f"{job.get('copy', '')}\n\n"
-        f"{hashtags}\n\n"
+        f"{hashtags}\n"
+        f"{audio_md}\n"
         f"{ai_note}\n"
     )
     (out_dir / "发布文案.md").write_text(copy_md, encoding="utf-8")
@@ -663,6 +716,8 @@ def main() -> None:
         "mode": mode,
         "duration": duration,
         "fps": fps,
+        "bgm": bgm_label,
+        "audio_note": audio_note,
         "video": str(final_mp4),
         "cover_9x16": str(c916),
         "cover_3x4": str(c34),

@@ -80,8 +80,8 @@ asyncio.run(edge_tts.Communicate(text, "zh-CN-XiaoxiaoNeural", rate="+10%").save
 
 ### 3.2 真实无版权 BGM
 
-音源优先级：`~/.yidehai-video/cache/bgm/` 已缓存真实无版权音源 → 在线免版权源 → `config.json` 免版权目录。
-本机已缓存 `jamendo-1118121.mp3`（352 秒，**Baldych - Lunar Path / Tunguska Electronic Music Society，Jamendo CC Standard，发布需署名**）。
+音源优先级：`~/.yidehai-video/cache/bgm/` 已缓存真实无版权音源 → 在线免版权源（如 `media-catalog.json` / Jamendo）→ `config.json` 免版权目录。
+> 若选用 Jamendo CC Standard 等附带署名要求的曲目，**务必在发布文案与交接备注中保留作者/曲目署名**。
 
 ```sh
 ffmpeg -y -v error -ss START -t 10 -i bgm.mp3 \
@@ -150,6 +150,6 @@ output/动效片批量N条-YYYYMMDD/
 
 ---
 
-## 六、参考实现
+## 六、内置脚本对齐
 
-本机已验证的完整脚本：`output/build_motion_batch5_v3.py`（工作区 `D:\Projects\亿德海视频`，路径以实际工作区为准），含 `THEMES` / `apply_theme` / `themed_cover_html` / `make_voice` / `make_bgm` / `mux` 全流程，可直接复制改造。修订建议原文见 `output/skill修订建议-20261124.md`。
+仓库内置的 `scripts/batch_runner.py`（动效片批量混音与旁白）与 `scripts/package_ai_video.py`（AI/实拍包装默认混入 12% 真实无版权 BGM）已按本手册第三节的 `amix normalize=0 + alimiter=limit=0.95` 参数对齐，直接调用即可，无需每台电脑单独维护自定义脚本。

@@ -48,6 +48,7 @@ yidehai-video-skill/
 │   ├── 06-rendering-playbook.md           # OpenMotion 组件补齐、lint、同步渲染与抽帧质检
 │   ├── 07-poster-batch-field-notes.md     # 大字报批量出片实战避坑指南
 │   ├── 08-ai-video-engines.md             # 即梦 CLI / Google Flow(ego-lite) / 实拍混剪 / MotionGit 实操手册
+│   ├── 09-motion-batch-field-notes.md     # 动效片批量实战手册（5 套浅色配色轮换 / 旁白+12% BGM 混音 / 子合成 CSS 避坑）
 │   └── media-catalog.json                 # 在线免版权 BGM 备用清单（GitHub Releases 托管，需实测可用性）
 └── scripts/
     ├── media_manager.py                   # 本地目录记忆、实拍素材防重抽取与在线空镜/BGM 拉取
