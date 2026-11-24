@@ -103,7 +103,7 @@
   3. **先在任务目录原子写入 `flow_task.json`**（必含字段：`task_id`、`project_url`、`model`、`quoted_credits`、`existing_thumbnails_count`、`existing_thumbnail_urls`、`submitted_at`、`status: "submitting"`），然后再执行点击；
   4. 异常高价立刻中止并告知成员；完成后务必调用 `task.finish({ keep: [] })` 关闭 TaskSpace。
 - **跨会话中断恢复与终态闭环规则**：
-  - 若浏览器断开、WorkBuddy 重启或点击后状态不明，**严禁直接再次点击生成**；必须读取 `flow_task.json` 回到同一个 `project_url`，将当前网格缩略图 URL 集合减去 `existing_thumbnail_urls`：
+  - 若浏览器断开、当前 Agent 重启或点击后状态不明，**严禁直接再次点击生成**；必须读取 `flow_task.json` 回到同一个 `project_url`，将当前网格缩略图 URL 集合减去 `existing_thumbnail_urls`：
     - 仅当差集**恰好新增 1 条**且对应任务属于当前会话时，才进入详情页下载 720p 原片；
     - 若差集为空、新增多条或无法唯一归属本次提交，立刻暂停并向成员汇报，等待人工确认，绝不自动重试或盲目下载。
   - 720p 原片下载并通过 `ffprobe` 校验后，立即将 `flow_task.json` 更新为 `status: "done"` 并记录 `downloaded_file`，完成闭环。

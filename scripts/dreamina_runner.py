@@ -239,6 +239,7 @@ def cmd_query(args: argparse.Namespace) -> None:
         state = json.loads(state_file.read_text(encoding="utf-8"))
 
     saved_id = state.get("submit_id")
+    saved_client_id = state.get("client_task_id")
     if args.submit_id and saved_id and args.submit_id != saved_id:
         raise ValueError(
             f"显式传入的 --submit-id ({args.submit_id}) 与目录内保存的 submit_id ({saved_id}) 不一致，已拒绝覆盖原状态文件。"
@@ -261,8 +262,13 @@ def cmd_query(args: argparse.Namespace) -> None:
 
     if state_file.exists():
         with file_lock(task_dir / ".dreamina.lock", timeout=15.0):
-            # 锁内重读最新状态并复核 submit_id，防止迟到的查询覆盖新授权提交
+            # 锁内重读最新状态并同时复核 client_task_id 与 submit_id，彻底杜绝迟到查询覆盖超时新提交
             latest = json.loads(state_file.read_text(encoding="utf-8"))
+            latest_client_id = latest.get("client_task_id")
+            if saved_client_id and latest_client_id and latest_client_id != saved_client_id:
+                raise ValueError(
+                    f"状态文件已被新提交更新（client_task_id {latest_client_id} != {saved_client_id}），已拒绝用旧查询结果覆盖。"
+                )
             latest_id = latest.get("submit_id")
             if latest_id and latest_id != submit_id:
                 raise ValueError(

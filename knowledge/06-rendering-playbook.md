@@ -93,7 +93,7 @@ node <APP_ROOT>/scripts/npm-installer.mjs prepare --home <OM_HOME>
 
 ### 2.5 已知故障：safe-delete 拦截导致 media 误标 failed
 
-在 WorkBuddy 等会拦截删除操作的宿主里，`prepare` 清理临时目录时可能被安全策略挡住，日志出现 `safe-delete`，media 被标成 `failed`——**但文件其实已完整解压**。先别重下，检查：
+在部分会拦截删除操作的桌面 Agent 宿主（如 WorkBuddy 等）里，`prepare` 清理临时目录时可能被安全策略挡住，日志出现 `safe-delete`，media 被标成 `failed`——**但文件其实已完整解压**。先别重下，检查：
 
 ```
 <CACHE>/<target_key>/media-XXXXXX/ffmpeg-*/bin/ffmpeg.exe
@@ -113,12 +113,13 @@ node <APP_ROOT>/scripts/npm-installer.mjs prepare --home <OM_HOME>
 
 ## 三、建工程与渲染（绕开后台 worker）
 
-### 3.1 WorkBuddy 下原生 MCP 工具未热加载时：directAccess
+### 3.1 原生 MCP 工具未热加载时：directAccess
 
+按当前宿主替换 `<HOST>`（如 `workbuddy` / `claude` / `codex` / `cursor`）：
 ```sh
-node <APP_ROOT>/scripts/npm-installer.mjs tools --home <OM_HOME> --host workbuddy
+node <APP_ROOT>/scripts/npm-installer.mjs tools --home <OM_HOME> --host <HOST>
 node <APP_ROOT>/scripts/npm-installer.mjs call <TOOL_NAME> --args-file <args.json> \
-     --home <OM_HOME> --host workbuddy
+     --home <OM_HOME> --host <HOST>
 ```
 `--args-file` 是 JSON；`call` 返回 MCP 的 `content[0].text`（通常还是一段 JSON，需要二次解析）。
 常用：`openmotion_create_project` → `openmotion_edit_project` → `openmotion_get_project`。

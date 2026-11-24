@@ -25,17 +25,17 @@
 先用一句大白话告知同事：
 > “首次出片正在用国内镜像为你安装最新版 OpenMotion（约 30–60 秒），装完之后每次都能直接出片。”
 
-通过环境变量锁定 `npm_config_registry=https://registry.npmmirror.com`（确保 `npx` 及其内部子进程全程走国内镜像，不被重置回 npm 官方源），并根据当前宿主传入 `--host`（WorkBuddy 传 `--host workbuddy`；Codex 传 `--host codex`；Claude Code 传 `--host claude`）：
+通过环境变量锁定 `npm_config_registry=https://registry.npmmirror.com`（确保 `npx` 及其内部子进程全程走国内镜像，不被重置回 npm 官方源），并按当前实际宿主替换 `<HOST>`（`WorkBuddy` → `workbuddy`；`Claude Code` → `claude`；`Codex` → `codex`；`Cursor` → `cursor`；其他桌面 Agent 可省略 `--host` 直接安装核心运行库）：
 
 - **macOS / Linux**：
   ```sh
-  npm_config_registry=https://registry.npmmirror.com npm_config_fetch_retries=0 npx --yes @openmotion/app@latest setup --host workbuddy
+  npm_config_registry=https://registry.npmmirror.com npm_config_fetch_retries=0 npx --yes @openmotion/app@latest setup --host <HOST>
   ```
 - **Windows (PowerShell)**：
   ```powershell
   $env:npm_config_registry="https://registry.npmmirror.com"
   $env:npm_config_fetch_retries="0"
-  npx --yes @openmotion/app@latest setup --host workbuddy
+  npx --yes @openmotion/app@latest setup --host <HOST>
   ```
 
 安装完成后：
@@ -122,7 +122,7 @@
 1. **拉取最新版 Skill 与知识库**：
    - 从 `https://github.com/yidehai-tech/yidehai-video-skill` 更新本 Skill 到最新版本（覆盖更新 `SKILL.md`、`knowledge/` 及 `scripts/`）。
 2. **联动升级 OpenMotion（已装时检查）**：
-   - 若本机已是最新版，**直接跳过，不要为「升级」重跑 setup**——重装可能覆盖已手动补齐的 native 组件；仅在需要升级时走国内镜像执行 `@openmotion/app@latest setup --host workbuddy` 并做导出自检。
+   - 若本机已是最新版，**直接跳过，不要为「升级」重跑 setup**——重装可能覆盖已手动补齐的 native 组件；仅在需要升级时走国内镜像执行 `@openmotion/app@latest setup --host <HOST>` 并做导出自检。
 3. **联动升级 HeyGen HyperFrames 与已装可选插件**：
    - 若本机已安装 `hyperframes`，顺手走国内镜像升级：`npm_config_registry=https://registry.npmmirror.com npm install -g hyperframes`；
    - 若本机已安装 `edge-tts`，顺手走清华镜像升级：`python3 -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -U edge-tts`（未装过则跳过）。

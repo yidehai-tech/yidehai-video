@@ -221,7 +221,7 @@ def run_one_item(
         cfg = media_manager.load_config()
         ledger_path = Path(cfg["ledger_path"])
         ledger = render_poster.load_ledger(ledger_path)
-        duration = float(item.get("duration", 10.0))
+        duration = max(3.0, float(item.get("duration", 10.0)))
 
         # 1) 可选合成中文旁白（优先用 voiceover_text，否则取标题+正文前 55 字）
         vo_text = str(item.get("voiceover_text") or "").strip()

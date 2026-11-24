@@ -1,6 +1,6 @@
 # 亿德海团队短视频创作 Skill（`yidehai-video-skill`）
 
-面向项目组非技术成员的一站式短视频创作与批量出片 Skill：内置亿德海合规红线、真实业务规则、爆款写稿方法论、首次本地素材路径记忆与全局防重账本，装进 **WorkBuddy**（或兼容 `SKILL.md` 的 AI 工具）即可直接对话出片。
+面向项目组非技术成员的一站式短视频创作与批量出片 Skill：内置亿德海合规红线、真实业务规则、爆款写稿方法论、首次本地素材路径记忆与全局防重账本。**全面兼容市面上所有主流 AI Agent 工具**——无论你用的是桌面执行型工具（**WorkBuddy、Claude Code、Codex、Cursor、Antigravity、OpenClaw** 等），还是对话/知识库型工具（**豆包、通义千问、Kimi、扣子** 等），均可无缝接入。
 
 ---
 
@@ -17,12 +17,15 @@
 
 ---
 
-## 二、给同事的 3 步使用说明
+## 二、给同事的 3 步使用说明（全平台 Agent 通用）
 
-1. **安装这 1 个 Skill**：
-   - 在 WorkBuddy 中发一句：`请从 https://github.com/yidehai-tech/yidehai-video-skill 安装 yidehai-video-skill`
-   - 或命令行执行：`npx skills add yidehai-tech/yidehai-video-skill`
-2. **首次开工配一次本地素材路径**（以后永久记住）：
+1. **导入这 1 个 Skill（按你使用的工具选一种）**：
+   - **WorkBuddy / Claude Code / Codex / Cursor / Antigravity / OpenClaw（桌面执行型 · 全自动出片）**：
+     - 对话框直接发：`请从 https://github.com/yidehai-tech/yidehai-video-skill 安装 yidehai-video-skill`
+     - 或命令行一键安装：`npx skills add yidehai-tech/yidehai-video-skill`
+   - **豆包 / 通义千问 / Kimi / 扣子（纯对话/知识库型 · 满血脚本与 Prompt 工厂）**：
+     - 将仓库内的 `SKILL.md` 与 `knowledge/01–08` 上传到智能体/项目知识库，即可直接对话产出 0 违规脚本、双封面大字、6 平台文案与可直接粘贴进即梦/Flow/剪映的防穿帮 Prompt。
+2. **首次开工配一次本地素材路径**（桌面型工具首次问 1 次，以后永久记住）：
    - 第一次对话时，助手会一次性问你的**本地实拍素材文件夹路径**（视频/图片，用于实拍混剪和省点混剪）、风景空镜目录（可选）和 MotionGit 免费模板目录（可选）；直接贴路径或回复「跳过」即可。
 3. **直接说需求出片**：
    - 例：“帮我做一条**大字报**” / “批量出 **20 条大字报**”
@@ -64,4 +67,4 @@ yidehai-video-skill/
 
 ## 四、一键更新
 
-群里通知更新后，直接对 WorkBuddy 说：**`帮我更新一下 yidehai-video-skill`** —— 会自动同步最新知识库与脚本，并按需升级本机已装的 `hyperframes` / `OpenMotion` / `edge-tts`。
+群里通知更新后，直接对你使用的桌面 Agent（WorkBuddy / Claude Code / Codex / Cursor 等）说：**`帮我更新一下 yidehai-video-skill`** —— 会自动同步最新知识库与脚本，并按需升级本机已装的 `hyperframes` / `OpenMotion` / `edge-tts`。
