@@ -1,73 +1,144 @@
-# 亿德海团队短视频创作 Skill（`yidehai-video-skill`）
+# yidehai-video-skill
 
-面向项目组非技术成员的一站式短视频创作与批量出片 Skill：内置亿德海合规红线、真实业务规则、爆款写稿方法论、首次本地素材路径记忆与全局防重账本。**全面兼容市面上所有主流 AI Agent 工具**——无论你用的是桌面执行型工具（**WorkBuddy、Claude Code、Codex、Cursor、Antigravity、OpenClaw** 等），还是对话/知识库型工具（**豆包、通义千问、Kimi、扣子** 等），均可无缝接入。
+![Version](https://img.shields.io/badge/version-2.6.0-2B8A3E)
+![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue)
+![Standard](https://img.shields.io/badge/Agent%20Skills-SKILL.md-orange)
 
----
-
-## 一、支持 7 大中文视频形态（直接说中文，不用记英文工具名）
-
-| 形态 | 费用 | 适用场景 |
-| :--- | :--- | :--- |
-| **`大字报`** | 免费 0 点 | 8.8 秒风景空镜 + 满屏大字，9 秒直出，高频日更主力 |
-| **`动效片`** | 免费 0 点 | 10 秒多屏动态卡片 + 图形动效 + AI 旁白（OpenMotion） |
-| **`实拍混剪`** | 免费 0 点 | 本地实拍视频/图片（全局防重）+ 免费干声旁白 → HeyGen HyperFrames 渲染 |
-| **`图文故事片`** | 按所选图源定（可 0 点） | 4–6 张分镜图平滑推镜短视频 + **小红书 3:4 轮播套图（一鱼两吃）**，图源由你 4 选 1（宿主内置生图 / 即梦 / 免费 API / 本地图片） |
-| **`即梦片`** | 扣即梦积分（显式点名才用） | `dreamina` CLI 全自动，支持「纯即梦」和「省积分混剪（即梦 5s 开场 + 本地实拍）」 |
-| **`Flow片`** | 扣 Google 点数（显式点名才用） | `ego-lite` 全自动 Google Flow，支持 `Omni 1.2 Flash` 口播与 `Veo 3.1 Lite` 10 点省点混剪 |
-| **`口播包装`** | 免费 0 点 | 真人实拍口播视频 + MotionGit 官方免费模板包装 |
+面向 **亿德海（yidehai）旧衣回收** 垂直场景的开源 AI Agent 短视频创作与批量生产 Skill。  
+内置业务事实库、多平台合规硬拦截、四维选题防枯竭矩阵、全局素材防重账本与跨平台渲染管线，兼容市面上所有主流桌面执行型与对话/知识库型 AI Agent 工具。
 
 ---
 
-## 二、给同事的 3 步使用说明（全平台 Agent 通用）
+## 核心特性
 
-1. **导入这 1 个 Skill（按你使用的工具选一种）**：
-   - **WorkBuddy / Claude Code / Codex / Cursor / Antigravity / OpenClaw（桌面执行型 · 全自动出片）**：
-     - 对话框直接发：`请从 https://github.com/yidehai-tech/yidehai-video-skill 安装 yidehai-video-skill`
-     - 或命令行一键安装：`npx skills add yidehai-tech/yidehai-video-skill`
-   - **豆包 / 通义千问 / Kimi / 扣子（纯对话/知识库型 · 满血脚本与 Prompt 工厂）**：
-     - 将仓库内的 `SKILL.md` 与 `knowledge/01–08` 上传到智能体/项目知识库，即可直接对话产出 0 违规脚本、双封面大字、6 平台文案与可直接粘贴进即梦/Flow/剪映的防穿帮 Prompt。
-2. **首次开工配一次本地素材路径**（桌面型工具首次问 1 次，以后永久记住）：
-   - 第一次对话时，助手会一次性问你的**本地实拍素材文件夹路径**（视频/图片，用于实拍混剪和省点混剪）、风景空镜目录（可选）和 MotionGit 免费模板目录（可选）；直接贴路径或回复「跳过」即可。
-3. **直接说需求出片**：
-   - 例：“帮我做一条**大字报**” / “批量出 **20 条大字报**”
-   - 例：“用本地素材帮我做一条 **0 点实拍混剪**”
-   - 例：“用**即梦**做一条省积分混剪视频”
-   - 例：“用 **Flow** 省点轮换出一条旧羽绒服回收视频”
+- **7 大生产轨道统一调度**：覆盖 0 成本高频日更（`大字报` / `动效片` / `实拍混剪` / `口播包装`）、一鱼两吃（`图文故事片`）与付费高拟真 AI 视频（`即梦片` / `Flow片`）。
+- **全平台 Agent 自动分级适配**：自动识别运行环境（L1 桌面执行型 / L2 轻沙箱型 / L3 纯对话知识库型），在任意工具中开箱即用。
+- **积分与费用自主选择护栏**：默认仅使用 0 积分免费轨道；调用宿主内置生图、即梦 CLI 或 Google Flow 前均要求显式选择与确认，并具备提交前原子落盘防重复扣分机制。
+- **统一成片质量标准**：默认「旁白 + 12% 真实无版权 BGM」、无底部品牌浮条与全屏静态尾卡、自动产出 `9:16` + `3:4` 双封面与 8 帧质检联系图。
+- **本机配置与防重隔离**：素材目录、API Key 与防重账本全部持久化在 `~/.yidehai-video/`，与 Skill 仓库彻底解耦。
 
 ---
 
-## 三、目录结构
+## 支持的视频形态
+
+| 形态 | 标识 | 费用口径 | 旁白 | 底层管线 | 适用场景 |
+| :--- | :--- | :--- | :---: | :--- | :--- |
+| **`大字报`** | `poster` | 免费（0 点） | ✕ | `render_poster.py`（离线直出） | 8.8s 风景空镜 + 满屏大字，高频日更主力 |
+| **`动效片`** | `motion` | 免费（0 点） | ✓（AI） | OpenMotion / HyperFrames | 10s 多屏卡片动效 + 5 套浅色主题轮换 |
+| **`实拍混剪`** | `montage` | 免费（0 点） | ✓（AI） | `package_ai_video.py` + HeyGen HyperFrames | 本地实拍视频/图片防重拼接 + 干声旁白 |
+| **`图文故事片`** | `storybook` | 按图源定（可 0 点） | ✓（AI） | `storybook_builder.py` + HeyGen HyperFrames | 4–6 张分镜图平滑推镜成片 + **小红书 3:4 轮播套图** |
+| **`即梦片`** | `dreamina` | 扣即梦积分（Opt-in） | ✓ | `dreamina_runner.py` + HeyGen HyperFrames | 纯即梦口播或「即梦 5s 开场 + 本地实拍」省积分混剪 |
+| **`Flow片`** | `flow` | 扣 Google 点数（Opt-in） | ✓ | `ego-lite` + Google Flow + HeyGen HyperFrames | `Omni 1.2 Flash` 口播或 `Veo 3.1 Lite` 10 点省点混剪 |
+| **`口播包装`** | `motiongit` | 免费（0 点） | ✓（原声） | MotionGit 官方免费模板 | 真人实拍口播视频的高质感动态风格化包装 |
+
+---
+
+## 快速安装
+
+### 方式一：通过 `skills` CLI 安装（推荐）
+
+适用于 **Claude Code、Codex、Cursor、Antigravity、OpenClaw** 等支持标准 Skill CLI 的工具：
+
+```bash
+npx skills add yidehai-tech/yidehai-video-skill
+```
+
+### 方式二：在桌面 Agent 对话框中直接导入
+
+适用于 **WorkBuddy** 等支持通过仓库链接安装 Skill 的桌面客户端，直接发送：
 
 ```text
-yidehai-video-skill/
-├── SKILL.md                               # 核心 6 形态工作流、首次初始化引导与自检规则
-├── README.md                              # 本使用与更新说明
-├── knowledge/
-│   ├── 00-auto-setup.md                   # OpenMotion / HeyGen HyperFrames / ego-lite / dreamina 自动检测与安装
-│   ├── 01-brand-rules.md                  # 合规硬红线与无浮条利落收尾规范（最高优先级）
-│   ├── 02-business-faq.md                 # 真实业务规则（起收标准/品类/流程，对外脱敏版）
-│   ├── 03-copy-formula.md                 # 写稿方法论与四维选题防枯竭矩阵
-│   ├── 04-visual-style.md                 # 竖屏安全区、双封面与大字报专项模板
-│   ├── 05-good-examples.md                # 已验证的过审脚本样本
-│   ├── 06-rendering-playbook.md           # OpenMotion 组件补齐、lint、同步渲染与抽帧质检
-│   ├── 07-poster-batch-field-notes.md     # 大字报批量出片实战避坑指南
-│   ├── 08-ai-video-engines.md             # 即梦 CLI / Google Flow(ego-lite) / 实拍混剪 / MotionGit 实操手册
-│   ├── 09-motion-batch-field-notes.md     # 动效片批量实战手册（5 套浅色配色轮换 / 旁白+12% BGM 混音 / 子合成 CSS 避坑）
-│   ├── 10-storybook-workflow.md           # 图文故事片一鱼两吃手册（图源 4 选 1 护栏 + 推镜视频 + 小红书 3:4 轮播）
-│   └── media-catalog.json                 # 在线免版权 BGM 备用清单（GitHub Releases 托管，需实测可用性）
-└── scripts/
-    ├── media_manager.py                   # 本地目录记忆、实拍素材防重抽取与在线空镜/图片/BGM 拉取
-    ├── render_poster.py                   # 离线极速大字报渲染器（成片 + 双封面）
-    ├── package_ai_video.py                # 通用 AI/实拍视频包装器（HeyGen HyperFrames · 无品牌浮条）
-    ├── storybook_builder.py               # 图文故事片一鱼两吃构建器（推镜成片 + 小红书 3:4 轮播套图）
-    ├── dreamina_runner.py                 # 即梦官方 CLI 防呆调度器（防重复扣分 + 断点续查）
-    ├── batch_runner.py                    # 批量出片调度器与可视化审片台
-    ├── motion_templates.py                # 动效片备选母版
-    └── fetch_om_components.py             # OpenMotion 组件镜像补齐脚本
+请从 https://github.com/yidehai-tech/yidehai-video-skill 安装 yidehai-video-skill
+```
+
+### 方式三：纯对话 / 知识库型 Agent 接入
+
+适用于 **豆包、通义千问、Kimi、扣子、ChatGPT Projects** 等无本地终端环境的工具：  
+将本仓库的 `SKILL.md` 与 `knowledge/01–10` 导入对应智能体或项目知识库，即可自动切换为 **编导 + 合规自检 + Prompt 工厂模式**，直接产出合规脚本、双封面文案及可直接粘贴进即梦/Flow/剪映的防穿帮提示词。
+
+---
+
+## 快速上手
+
+### 1. 首次初始化本机素材路径（可选）
+
+首次在桌面 Agent 中触发本 Skill 时，会自动引导配置一次本机路径并持久化到 `~/.yidehai-video/config.json`。也可通过 CLI 手动管理：
+
+```bash
+# 查看当前本机配置（自动脱敏，不回显密钥）
+python3 scripts/media_manager.py config --show
+
+# 配置本地业务实拍目录（视频/图片，供实拍混剪与省点混剪防重抽取）
+python3 scripts/media_manager.py config --add-footage-dir "/path/to/footage"
+
+# 配置大字报风景空镜目录或免费图库 API Key（可选）
+python3 scripts/media_manager.py config --add-bg-dir "/path/to/scenic"
+python3 scripts/media_manager.py config --set-pexels-key "<YOUR_PEXELS_KEY>"
+
+# 设置图文故事片默认生图来源（ask / host_tool / dreamina / free_api / local）
+python3 scripts/media_manager.py config --set-image-source ask
+```
+
+### 2. 对话式调用示例
+
+```text
+帮我做一条换季清衣柜的大字报视频
+帮我批量生成 20 条旧衣回收视频（默认 50% 大字报 + 50% 动效片）
+用本地实拍素材做一条 0 点实拍混剪
+帮我做一条旧羽绒服回收的图文故事片（同步出小红书轮播图）
+用即梦 CLI 做一条省积分混剪视频
+用 Google Flow 省点轮换出一条旧鞋旧包回收视频
 ```
 
 ---
 
-## 四、一键更新
+## 多宿主分级适配
 
-群里通知更新后，直接对你使用的桌面 Agent（WorkBuddy / Claude Code / Codex / Cursor 等）说：**`帮我更新一下 yidehai-video-skill`** —— 会自动同步最新知识库与脚本，并按需升级本机已装的 `hyperframes` / `OpenMotion` / `edge-tts`。
+| 等级 | 宿主类型 | 代表工具 | 运行模式 |
+| :--- | :--- | :--- | :--- |
+| **L1** | 完整桌面执行型 | WorkBuddy、Claude Code、Codex、Cursor、Antigravity、Windsurf、OpenClaw | 全 7 轨道自动检测依赖、渲染成片、抽帧质检并按日期归档 |
+| **L2** | 轻终端 / 受限沙箱型 | 云端容器、受限终端 Agent | 优先运行纯本地离线脚本，缺少渲染引擎时平滑降级 |
+| **L3** | 纯对话 / 知识库型 | 豆包、通义千问、Kimi、扣子、ChatGPT Projects | 自动跳过本地脚本检测，输出合规脚本 + 双封面字 + 防穿帮 Prompt |
+
+---
+
+## 目录结构
+
+```text
+yidehai-video-skill/
+├── SKILL.md                               # Skill 入口：L1/L2/L3 适配、7 形态工作流与合规自检
+├── README.md                              # 项目说明文档
+├── knowledge/
+│   ├── 00-auto-setup.md                   # OpenMotion / HeyGen HyperFrames / ego-lite / dreamina 自动检测与安装
+│   ├── 01-brand-rules.md                  # 最高优先级：合规禁用词、无浮条利落收尾与统一 12% BGM 音频口径
+│   ├── 02-business-faq.md                 # 脱敏版公开业务规则（起收门槛、可收品类、流程口径）
+│   ├── 03-copy-formula.md                 # 写稿方法论与四维选题防枯竭矩阵
+│   ├── 04-visual-style.md                 # 竖屏安全区、5 套浅色主题轮换、双封面与大字报版式规范
+│   ├── 05-good-examples.md                # 已验证过审脚本与大字报样本
+│   ├── 06-rendering-playbook.md           # OpenMotion 组件补齐、lint、同步渲染与抽帧质检
+│   ├── 07-poster-batch-field-notes.md     # 大字报批量出片实战避坑指南
+│   ├── 08-ai-video-engines.md             # 即梦 CLI / Google Flow(ego-lite) / 实拍混剪 / MotionGit 实操手册
+│   ├── 09-motion-batch-field-notes.md     # 动效片批量实战手册（配色轮换 / 旁白+12% BGM 混音 / 子合成避坑）
+│   ├── 10-storybook-workflow.md           # 图文故事片一鱼两吃手册（图源 4 选 1 护栏 + 推镜视频 + 3:4 轮播）
+│   └── media-catalog.json                 # 在线免版权 BGM 备用清单（GitHub Releases 托管）
+└── scripts/
+    ├── media_manager.py                   # 本机配置、共享合规校验、跨进程文件锁、素材防重与在线拉取
+    ├── render_poster.py                   # 大字报离线渲染器（1080x1920 成片 + 9:16 & 3:4 双封面）
+    ├── package_ai_video.py                # 通用 AI/实拍视频包装器（HeyGen HyperFrames · 12% BGM · 8 帧质检）
+    ├── storybook_builder.py               # 图文故事片构建器（推镜短视频 + 小红书 3:4 轮播套图）
+    ├── dreamina_runner.py                 # 即梦 CLI 防呆调度器（提交前原子落盘、防重复扣分、断点续查）
+    ├── batch_runner.py                    # 批量出片调度器（断点续跑 + 可视化审片台 review.html）
+    ├── motion_templates.py                # 动效片三套母版（5 套浅色主题轮换，无品牌浮条）
+    └── fetch_om_components.py             # OpenMotion native 组件镜像补齐与 sha256 校验脚本
+```
+
+---
+
+## 环境要求与版本更新
+
+- **基础运行环境（L1 桌面执行型）**：`Python 3.10+`、`FFmpeg / FFprobe`、`Pillow`；使用 `动效片` / `实拍混剪` / `AI 包装` 时需 `Node.js ≥ 22`（国内镜像自动安装 `OpenMotion` 与 `HeyGen HyperFrames`）。
+- **同步最新版本**：在桌面 Agent 中直接执行：
+  ```text
+  更新一下 yidehai-video-skill
+  ```
+  或通过 `npx skills add yidehai-tech/yidehai-video-skill` 重新拉取。
