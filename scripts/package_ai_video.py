@@ -697,10 +697,15 @@ def main() -> None:
                 render_poster.save_ledger(ledger_path, ledger)
                 bgm_label = f"{bgm_src.name}@{bgm_start:.1f}s(12%)"
             else:
-                audio_note = "本次因混音异常回落为纯人声干声版（无 BGM）。"
+                raise RuntimeError(
+                    f"【硬拦截：BGM 混音失败】为避免交付残缺无配乐成品已中止（ffmpeg exit={mux_proc.returncode}）：{mux_proc.stderr[-300:]}"
+                )
         else:
-            bgm_label = "dry-voice-no-bgm-source"
-            audio_note = "本次因本机未配置且未能拉取到真实无版权 BGM，回落为纯人声干声版，发布时可挂平台热门轻音乐（10%-15%）。"
+            raise RuntimeError(
+                "【硬拦截：缺少真实背景音乐源】当前未开启 --silent，但本机无可用 BGM 且在线拉取失败，"
+                "严禁跳过直接交付无配乐半成品。请先配置本地 BGM 目录（--add-bgm-dir）或 Jamendo Client ID（--set-jamendo-id），"
+                "或仅在明确需要无声/纯干声版时显式传入 --silent。"
+            )
     else:
         bgm_label = "dry-voice-by-request"
         audio_note = "按要求输出纯人声干声版（无 BGM），发布时可挂平台热门轻音乐。"

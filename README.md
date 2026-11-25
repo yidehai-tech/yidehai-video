@@ -1,6 +1,6 @@
 # yidehai-video-skill
 
-![Version](https://img.shields.io/badge/version-2.6.4-2B8A3E)
+![Version](https://img.shields.io/badge/version-2.6.5-2B8A3E)
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue)
 ![Standard](https://img.shields.io/badge/Agent%20Skills-SKILL.md-orange)
 
@@ -75,20 +75,28 @@ npx skills add yidehai-tech/yidehai-video-skill
 
 ## 快速上手
 
-### 1. 开箱即用（本机素材路径按需配置，无需预先填表）
+### 1. 配置必需素材源与免费 API Key（严禁缺配出残缺作品）
 
-安装完成后可直接出片（`大字报`、`动效片`、`图文故事片`、`即梦片`、`Flow片` 均不依赖本地素材目录）；仅在用到 `实拍混剪` 或 `口播包装` 时才会按需记住你的本地目录并持久化到 `~/.yidehai-video/config.json`。也可通过 CLI 手动管理：
+为避免全员撞画面且确保每条成片都具备完整画质与音轨，本 Skill **不预置公用风景空镜**，并在生成前执行 `preflight` 硬校验（缺背景视频或音乐源时直接拦截，绝不回落纯色底或无声半成品）。所有配置一次写入 `~/.yidehai-video/config.json` 永久记住：
 
 ```bash
+# 校验目标轨道所需配置是否齐备（poster / motion / montage / storybook / motiongit）
+python3 scripts/media_manager.py preflight --track poster
+
 # 查看当前本机配置（自动脱敏，不回显密钥）
 python3 scripts/media_manager.py config --show
 
-# 配置本地业务实拍目录（视频/图片，供实拍混剪与省点混剪防重抽取）
-python3 scripts/media_manager.py config --add-footage-dir "/path/to/footage"
-
-# 配置大字报风景空镜目录或免费图库 API Key（可选）
-python3 scripts/media_manager.py config --add-bg-dir "/path/to/scenic"
+# 配置大字报风景空镜（Pexels / Pixabay 免费 API Key 或本地空镜目录二选一，必配）
 python3 scripts/media_manager.py config --set-pexels-key "<YOUR_PEXELS_KEY>"
+python3 scripts/media_manager.py config --set-pixabay-key "<YOUR_PIXABAY_KEY>"
+python3 scripts/media_manager.py config --add-bg-dir "/path/to/scenic"
+
+# 配置背景音乐源（Jamendo 免费音乐 Client ID 或本地免版权音乐目录）
+python3 scripts/media_manager.py config --set-jamendo-id "<YOUR_JAMENDO_CLIENT_ID>"
+python3 scripts/media_manager.py config --add-bgm-dir "/path/to/bgm"
+
+# 配置本地业务实拍目录（供实拍混剪与省点混剪防重抽取）
+python3 scripts/media_manager.py config --add-footage-dir "/path/to/footage"
 
 # 设置图文故事片默认生图来源（ask / host_tool / dreamina / free_api / local）
 python3 scripts/media_manager.py config --set-image-source ask

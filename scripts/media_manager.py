@@ -506,6 +506,131 @@ def ensure_online_media(kind: str, count: int = 2, query: str | None = None, cfg
     return got
 
 
+def _dir_has_files(dirs: list[str | Path], exts: set[str]) -> bool:
+    for d in dirs:
+        if not d:
+            continue
+        p = Path(d).expanduser()
+        if not p.is_dir():
+            continue
+        for f in p.rglob("*"):
+            if f.is_file() and f.suffix.lower() in exts and not f.name.startswith("."):
+                return True
+    return False
+
+
+def run_preflight(track: str, silent: bool = False, cfg: dict | None = None, probe_online_bgm: bool = True) -> dict:
+    """生成前硬校验门禁：严禁在缺少必需素材目录或 API Key 时跳过直接产出不完整/纯色/无声的失败作品。"""
+    cfg = cfg or load_config()
+    video_exts = {".mp4", ".mov", ".m4v", ".mkv", ".webm"}
+    image_exts = {".jpg", ".jpeg", ".png", ".webp"}
+    audio_exts = {".mp3", ".m4a", ".wav", ".aac", ".flac", ".ogg", ".mp4"}
+
+    pexels_key = os.environ.get("PEXELS_API_KEY") or cfg.get("pexels_api_key") or ""
+    pixabay_key = os.environ.get("PIXABAY_API_KEY") or cfg.get("pixabay_api_key") or ""
+    jamendo_id = os.environ.get("JAMENDO_CLIENT_ID") or cfg.get("jamendo_client_id") or ""
+
+    has_bg_local = _dir_has_files(cfg.get("local_bg_dirs", []), video_exts)
+    has_bg_cache = _dir_has_files([cfg.get("cache_bg_dir", CACHE_BG_DIR)], video_exts)
+    has_bg_api = bool(pexels_key or pixabay_key)
+
+    has_bgm_local = _dir_has_files(cfg.get("local_bgm_dirs", []), audio_exts)
+    has_bgm_cache = _dir_has_files([cfg.get("cache_bgm_dir", CACHE_BGM_DIR)], audio_exts)
+    has_bgm_api = bool(jamendo_id)
+
+    missing: list[dict] = []
+    notes: list[str] = []
+
+    # 1) 背景视频校验（大字报强依赖，不预置公用空镜以防撞画面）
+    if track == "poster":
+        if not (has_bg_local or has_bg_cache or has_bg_api):
+            missing.append({
+                "item": "bg_video_source",
+                "label": "大字报风景空镜背景源（必配，二选一）",
+                "reason": "为避免团队撞画面，本 Skill 不预置公用风景视频；未配置时严禁回落纯色底敷衍出片。",
+                "how_to_fix": [
+                    "方式 A（推荐，免费 API 自动不重样拉取）：配置 Pexels 或 Pixabay 免费 API Key：python3 scripts/media_manager.py config --set-pexels-key \"<KEY>\" 或 --set-pixabay-key \"<KEY>\"",
+                    "方式 B（本地素材）：指定本地风景空镜文件夹：python3 scripts/media_manager.py config --add-bg-dir \"<本地空镜目录>\"",
+                ],
+            })
+
+    # 2) 实拍素材校验
+    if track == "montage":
+        has_footage = _dir_has_files(cfg.get("local_footage_dirs", []), video_exts | image_exts)
+        if not has_footage:
+            missing.append({
+                "item": "local_footage_dirs",
+                "label": "本地业务实拍素材目录（必配）",
+                "reason": "实拍混剪需要真实的本地视频或照片素材，当前未配置或目录内无可用文件。",
+                "how_to_fix": [
+                    "python3 scripts/media_manager.py config --add-footage-dir \"<本地实拍目录>\"",
+                ],
+            })
+
+    # 3) 图文故事片图源校验
+    if track == "storybook":
+        img_src = (cfg.get("default_image_source") or "").strip()
+        if img_src == "free_api" and not has_bg_api:
+            missing.append({
+                "item": "stock_image_api_key",
+                "label": "免费图库 API Key（Pexels / Pixabay，必配）",
+                "reason": "当前图文故事片图源设为 free_api，但未配置 Pexels 或 Pixabay API Key。",
+                "how_to_fix": [
+                    "python3 scripts/media_manager.py config --set-pexels-key \"<KEY>\" 或 --set-pixabay-key \"<KEY>\"",
+                ],
+            })
+        elif not img_src:
+            notes.append("图文故事片分镜图源尚未预设，开工前必须先让用户 4 选 1（宿主内置生图 / 即梦 CLI / 免费图库 API / 本地图片），严禁静默扣积分。")
+
+    # 4) 口播包装模板校验
+    if track == "motiongit":
+        tpl_dir = cfg.get("local_motion_templates_dir") or ""
+        if not _dir_has_files([tpl_dir], {".motion"}):
+            missing.append({
+                "item": "local_motion_templates_dir",
+                "label": "本地 MotionGit 官方免费 .motion 模板目录（必配）",
+                "reason": "口播包装需要已下载到本机的 MotionGit 官方免费 .motion 模板文件。",
+                "how_to_fix": [
+                    "python3 scripts/media_manager.py config --set-motion-templates-dir \"<模板目录>\"",
+                ],
+            })
+
+    # 5) 背景音乐校验（所有非 --silent 轨道必配，严禁悄悄产出无声半成品）
+    if not silent and track in {"poster", "motion", "montage", "storybook", "dreamina", "flow"}:
+        bgm_ready = has_bgm_local or has_bgm_cache or has_bgm_api
+        if not bgm_ready and probe_online_bgm:
+            got = ensure_online_media("bgm_tracks", count=1, cfg=cfg)
+            bgm_ready = bool(got) or _dir_has_files([cfg.get("cache_bgm_dir", CACHE_BGM_DIR)], audio_exts)
+        if not bgm_ready:
+            missing.append({
+                "item": "bgm_source",
+                "label": "背景音乐源（必配，非无声版不可跳过）",
+                "reason": "未配置本地 BGM 目录或 Jamendo Client ID，且在线免版权 BGM 拉取失败；严禁静默产出无声残缺成品。",
+                "how_to_fix": [
+                    "方式 A（免费 API）：配置 Jamendo 免费音乐 Client ID：python3 scripts/media_manager.py config --set-jamendo-id \"<CLIENT_ID>\"",
+                    "方式 B（本地音乐）：指定免版权纯音乐文件夹：python3 scripts/media_manager.py config --add-bgm-dir \"<本地BGM目录>\"",
+                    "方式 C：检查网络连通性后重试拉取内置无版权 BGM，或仅在明确要无声版时显式加 --silent。",
+                ],
+            })
+
+    return {
+        "ok": len(missing) == 0,
+        "track": track,
+        "silent": silent,
+        "missing": missing,
+        "notes": notes,
+        "configured": {
+            "has_bg_local": has_bg_local,
+            "has_bg_cache": has_bg_cache,
+            "has_pexels_key": bool(pexels_key),
+            "has_pixabay_key": bool(pixabay_key),
+            "has_bgm_local": has_bgm_local,
+            "has_bgm_cache": has_bgm_cache,
+            "has_jamendo_id": bool(jamendo_id),
+        },
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="亿德海本地素材路径记忆与在线空镜/BGM 按需拉取工具")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -532,6 +657,11 @@ def main() -> None:
     p_foot = sub.add_parser("footage", help="从本地业务实拍目录抽取未用过的视频/图片素材（全局防重）")
     p_foot.add_argument("--count", type=int, default=3, help="需要抽取的素材数量")
     p_foot.add_argument("--kind", choices=["any", "video", "image"], default="any", help="筛选类型")
+
+    p_pre = sub.add_parser("preflight", help="生成前硬校验门禁：检查目标轨道所需的视频/图片/音乐/API Key 是否齐备")
+    p_pre.add_argument("--track", choices=["poster", "motion", "montage", "storybook", "dreamina", "flow", "motiongit"], required=True)
+    p_pre.add_argument("--silent", action="store_true", help="显式声明本次出无声版（跳过 BGM 强制校验）")
+    p_pre.add_argument("--no-online-probe", action="store_true", help="仅检查本机配置与缓存，不触发在线 BGM 探测下载")
 
     args = parser.parse_args()
     cfg = load_config()
@@ -647,6 +777,17 @@ def main() -> None:
                 for f in picked
             ],
         }, ensure_ascii=False, indent=2))
+
+    elif args.cmd == "preflight":
+        res = run_preflight(
+            args.track,
+            silent=args.silent,
+            cfg=cfg,
+            probe_online_bgm=not args.no_online_probe,
+        )
+        print(json.dumps(res, ensure_ascii=False, indent=2))
+        if not res["ok"]:
+            sys.exit(2)
 
 
 if __name__ == "__main__":

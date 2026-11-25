@@ -544,9 +544,10 @@ def main() -> None:
     parser.add_argument("--bg-source", choices=["both", "local", "online"], help="背景来源：both(本地+在线混合) / local / online")
     parser.add_argument("--bgm", help="指定背景音乐文件（支持 mp3/m4a/wav 或带音轨的 mp4）")
     parser.add_argument("--bgm-dir", help="BGM 素材池目录（不传则自动读取本机记忆目录 + 在线缓存）")
-    parser.add_argument("--bgm-volume", type=float, default=0.12, help="背景音乐音量倍率（默认 0.12，与全 Skill 12%% 音频口径一致）")
-    parser.add_argument("--silent", action="store_true", help="强制导出无声版（不加任何背景音乐）")
-    parser.add_argument("--ambient-fallback", action="store_true", help="无真实 BGM 时使用内置合成和弦兜底（默认关闭，改出干净无声版）")
+    parser.add_argument("--bgm-volume", type=float, default=0.65, help="背景音乐音量倍率（大字报无旁白，默认 0.65 保证外放清晰；有旁白轨道另用 0.12）")
+    parser.add_argument("--silent", action="store_true", help="显式导出无声版（不加任何背景音乐；未传此参数时缺音乐将硬拦截）")
+    parser.add_argument("--allow-solid-fallback", action="store_true", help="仅限调试：允许无背景视频时回落纯色底（生产出片严禁开启）")
+    parser.add_argument("--ambient-fallback", action="store_true", help="无真实 BGM 时使用内置合成和弦兜底（默认关闭，缺真实 BGM 时硬拦截）")
     parser.add_argument("--ledger", help="防重账本 JSON 路径（默认使用全局 ~/.yidehai-video/used_history.json）")
     parser.add_argument("--out-dir", required=True, help="输出目录")
     parser.add_argument("--organize-by-date", action="store_true", help="自动按 YYYY-MM-DD/YYYYMMDD-HHMMSS-大字报-slug 归档子目录")
@@ -601,6 +602,15 @@ def main() -> None:
         if picked is not None:
             bg_video, bg_start = picked
 
+    if bg_video is None and not args.allow_solid_fallback:
+        raise RuntimeError(
+            "【硬拦截：缺少大字报背景视频源】为避免作品变成纯色底半成品且防止团队撞画面，本 Skill 不预置公用空镜，"
+            "生成大字报前必须至少配置以下一种背景源：\n"
+            "  1) Pexels / Pixabay 免费 API Key：python3 scripts/media_manager.py config --set-pexels-key \"<KEY>\"（或 --set-pixabay-key）\n"
+            "  2) 本地风景空镜文件夹：python3 scripts/media_manager.py config --add-bg-dir \"<本地空镜目录>\"\n"
+            "请先配置完成后再重新生成。"
+        )
+
     now = datetime.now()
     slug = media_manager.sanitize_slug(job.get("slug", f"poster-{now.strftime('%Y%m%d-%H%M%S')}"), fallback="poster")
     base_out = Path(args.out_dir).expanduser().resolve()
@@ -643,7 +653,13 @@ def main() -> None:
                 generate_gentle_ambient_wav(bgm_audio, duration, seed)
                 bgm_label = "builtin-ambient-chord"
             else:
-                bgm_label = "silent-no-bgm-configured"
+                raise RuntimeError(
+                    "【硬拦截：缺少真实背景音乐源】当前未加 --silent，但本机无可用 BGM 且在线拉取失败，"
+                    "为避免产出无声残缺作品已阻止生成。请先配置以下任一音乐源后重试：\n"
+                    "  1) Jamendo 免费音乐 Client ID：python3 scripts/media_manager.py config --set-jamendo-id \"<CLIENT_ID>\"\n"
+                    "  2) 本地免版权纯音乐目录：python3 scripts/media_manager.py config --add-bgm-dir \"<本地BGM目录>\"\n"
+                    "  3) 若明确要导无声版供平台配乐，请显式传入 --silent。"
+                )
         render_poster_video(
             bg_video=bg_video,
             bg_start=bg_start,

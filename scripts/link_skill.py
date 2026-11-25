@@ -58,7 +58,7 @@ AGENTS_MD_BLOCK = f"""
 
 1. 严守 `knowledge/01-brand-rules.md` 合规硬红线（0 禁用词、无底部品牌浮条、无全屏静态尾卡）；
 2. **严禁未经用户明确选择静默扣积分调用宿主内置生图/生视频、即梦 CLI 或 Google Flow**；
-3. **开箱即用、按需记路径**：做 `大字报` / `动效片` / `图文故事片` / `即梦片` / `Flow片` 时直接出片，不要弹窗追问素材目录；仅在做 `实拍混剪` 或 `口播包装` 且未配本地路径时顺便问一次并持久化到 `~/.yidehai-video/config.json`；
+3. **生成前硬门禁（严禁出残缺半成品）**：每次出片前必须先执行 `python3 <skill_dir>/scripts/media_manager.py preflight --track <轨道>`；缺背景视频源/音乐源/图源 Key 或素材目录时必须先让用户补齐并持久化到 `~/.yidehai-video/config.json`，严禁跳过回落纯色底或无声失败作品；
 4. **Agent 自动自愈挂载（绝不让用户手动敲命令）**：如果你是首次打开本项目、且发现 `yidehai-video-skill` 尚未出现在你自己的原生技能清单里，请立刻主动确认你自身的技能根目录并自动执行一次 `python3 <skill_dir>/scripts/link_skill.py --skip-user-hosts --extra-skills-dir "<你的技能根目录>"` 完成静默挂载（Windows 默认安全镜像复制，防宿主清理误删真源），不要把命令甩给用户自己跑。
 """
 
