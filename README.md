@@ -1,6 +1,6 @@
 # yidehai-video-skill
 
-![Version](https://img.shields.io/badge/version-2.6.2-2B8A3E)
+![Version](https://img.shields.io/badge/version-2.6.3-2B8A3E)
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue)
 ![Standard](https://img.shields.io/badge/Agent%20Skills-SKILL.md-orange)
 
@@ -67,6 +67,7 @@ npx skills add yidehai-tech/yidehai-video-skill
   Agent 会自动识别自身目录并静默完成联接（若未在默认列表里，也会由 Agent 主动调用 `--extra-skills-dir` 自愈解决，无需用户手敲命令）。
 - **开发者手动执行（可选）**：
   ```bash
+  # 推荐将仓库克隆到独立持久化目录（如 ~/.yidehai-video/skill-repo），勿放在某个单一 Agent 私有目录内以免被宿主清理
   python3 scripts/link_skill.py --project-dir "/path/to/your-video-project"
   ```
 

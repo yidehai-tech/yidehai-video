@@ -132,6 +132,15 @@ def main() -> None:
         "project": {},
     }
 
+    # 避坑检测：若真源位于单一宿主私有管理目录（如 .workbuddy/skills），存在被宿主自动回收/清空风险
+    src_str = str(SKILL_ROOT).replace("\\", "/").lower()
+    managed_markers = ("/.workbuddy/skills/", "/.doubao/skills/", "/.claude/skills/", "/.codex/skills/")
+    if any(m in src_str for m in managed_markers):
+        results["warning"] = (
+            "检测到当前 Skill 真源位于某个单一 Agent 的私有管理目录内，部分宿主会在同步/重启时清理该目录导致所有联接失效。"
+            "强烈建议将仓库克隆到独立持久化目录（例如 ~/.yidehai-video/skill-repo 或业务盘独立目录），再从独立目录运行 link_skill.py 向各宿主联接。"
+        )
+
     if not args.skip_user_hosts:
         for host_name, skills_dir in KNOWN_HOST_SKILL_DIRS:
             # 仅对已安装（父目录存在）的宿主或标准 ~/.agents 创建挂载，避免制造垃圾隐藏目录
