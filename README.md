@@ -1,6 +1,6 @@
 # yidehai-video-skill
 
-![Version](https://img.shields.io/badge/version-2.6.3-2B8A3E)
+![Version](https://img.shields.io/badge/version-2.6.4-2B8A3E)
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue)
 ![Standard](https://img.shields.io/badge/Agent%20Skills-SKILL.md-orange)
 
@@ -58,13 +58,13 @@ npx skills add yidehai-tech/yidehai-video-skill
 
 ### 多 Agent 工具共用同一项目（自动自愈挂载，无需手动折腾）
 
-不同桌面 Agent 默认扫描各自的私有目录。`scripts/link_skill.py` 内置覆盖国内外主流宿主（`WorkBuddy`、`豆包`、`通义千问`、`OpenClaw`、`Claude Code`、`Codex`、`Gemini/Antigravity`、`Cursor`、`Trae`、`Windsurf`、`Qoder`、`Kiro`、`Cline`、`Roo`、`Copilot`、`OpenCode` 以及开放标准 `.agents/skills` / `.skills`），**仅对本机已安装的宿主创建软链/联接**，并在项目根目录自动写入跨工具通用的 `AGENTS.md` 兜底入口。
+不同桌面 Agent 默认扫描各自的私有目录。`scripts/link_skill.py` 内置覆盖国内外主流宿主（`WorkBuddy`、`豆包`、`通义千问`、`OpenClaw`、`Claude Code`、`Codex`、`Gemini/Antigravity`、`Cursor`、`Trae`、`Windsurf`、`Qoder`、`Kiro`、`Cline`、`Roo`、`Copilot`、`OpenCode` 以及开放标准 `.agents/skills` / `.skills`），**仅对本机已安装的宿主自动挂载**（macOS/Linux 使用软链；**Windows 默认使用安全镜像副本**，避免部分宿主清理 `.skills` 目录时穿透 Junction 误删真源），并在项目根目录自动写入跨工具通用的 `AGENTS.md` 兜底入口。
 
 - **非技术用户直接用自然语言**：在任意新换的桌面 Agent 对话框里说一句：
   ```text
   请帮我把 yidehai-video-skill 自动挂载到当前项目和你自己的技能目录里
   ```
-  Agent 会自动识别自身目录并静默完成联接（若未在默认列表里，也会由 Agent 主动调用 `--extra-skills-dir` 自愈解决，无需用户手敲命令）。
+  Agent 会自动识别自身目录并静默完成挂载（若未在默认列表里，也会由 Agent 主动调用 `--extra-skills-dir` 自愈解决，无需用户手敲命令）。
 - **开发者手动执行（可选）**：
   ```bash
   # 推荐将仓库克隆到独立持久化目录（如 ~/.yidehai-video/skill-repo），勿放在某个单一 Agent 私有目录内以免被宿主清理
@@ -75,9 +75,9 @@ npx skills add yidehai-tech/yidehai-video-skill
 
 ## 快速上手
 
-### 1. 首次初始化本机素材路径（可选）
+### 1. 开箱即用（本机素材路径按需配置，无需预先填表）
 
-首次在桌面 Agent 中触发本 Skill 时，会自动引导配置一次本机路径并持久化到 `~/.yidehai-video/config.json`。也可通过 CLI 手动管理：
+安装完成后可直接出片（`大字报`、`动效片`、`图文故事片`、`即梦片`、`Flow片` 均不依赖本地素材目录）；仅在用到 `实拍混剪` 或 `口播包装` 时才会按需记住你的本地目录并持久化到 `~/.yidehai-video/config.json`。也可通过 CLI 手动管理：
 
 ```bash
 # 查看当前本机配置（自动脱敏，不回显密钥）

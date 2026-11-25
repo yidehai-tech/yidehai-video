@@ -2,7 +2,8 @@
 
 > 核心原则：
 > 1. **绝不让非技术同事手动配环境**；
-> 2. **绝不让 OpenMotion 安装成为阻塞项**（严禁反复 `git clone` 源码仓库或长时间死等；最多尝试 1 次国内镜像 npm 稳定版安装，失败立刻降级继续交付）。
+> 2. **安装一体化，绝不拆轮打扰**：当成员说“安装 `yidehai-video-skill`”时，请一次性连续完成：① 克隆到独立持久目录（推荐 `~/.yidehai-video/skill-repo`，勿放单一宿主私有目录内）；② 运行 `python3 scripts/link_skill.py` 安全挂载到本机宿主（Windows 默认安全镜像复制，防宿主清理穿透误删真源）；③ 自动补齐免费且无风险的基础运行环境（`ffmpeg`/`ffprobe`、`edge-tts`、`Pillow`、`requests`）并校验就绪。**不要装完一部分就停下来问“要不要装 ffmpeg”，也不要在安装阶段追问本地素材路径**（仅涉及付费/扣积分或需人工安装外部客户端时才停下来确认）；
+> 3. **绝不让 OpenMotion 安装成为阻塞项**（严禁反复 `git clone` 源码仓库或长时间死等；最多尝试 1 次国内镜像 npm 稳定版安装，失败立刻降级继续交付）。
 
 ---
 
@@ -119,8 +120,9 @@
 
 当成员说 **「更新一下 `yidehai-video-skill`」** / **「同步最新视频助手」** 时，按以下 4 步一站式升级（同样遵循非阻塞原则，单步失败不阻断整体）：
 
-1. **拉取最新版 Skill 与知识库**：
-   - 从 `https://github.com/yidehai-tech/yidehai-video-skill` 更新本 Skill 到最新版本（覆盖更新 `SKILL.md`、`knowledge/` 及 `scripts/`）。
+1. **拉取最新版 Skill 与知识库并同步全宿主**：
+   - 在独立持久化真源目录（如 `~/.yidehai-video/skill-repo`）从 `https://github.com/yidehai-tech/yidehai-video-skill` 拉取最新代码；
+   - 顺手运行一次 `python3 scripts/link_skill.py`（若当前宿主有私有 `.skills` 目录则附带 `--extra-skills-dir`），Windows 下会自动将最新版安全镜像覆盖同步到所有宿主目录。
 2. **联动升级 OpenMotion（已装时检查）**：
    - 若本机已是最新版，**直接跳过，不要为「升级」重跑 setup**——重装可能覆盖已手动补齐的 native 组件；仅在需要升级时走国内镜像执行 `@openmotion/app@latest setup --host <HOST>` 并做导出自检。
 3. **联动升级 HeyGen HyperFrames 与已装可选插件**：
