@@ -1,6 +1,6 @@
 # yidehai-video-skill
 
-![Version](https://img.shields.io/badge/version-2.6.5-2B8A3E)
+![Version](https://img.shields.io/badge/version-2.6.6-2B8A3E)
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue)
 ![Standard](https://img.shields.io/badge/Agent%20Skills-SKILL.md-orange)
 
@@ -45,11 +45,13 @@ npx skills add yidehai-tech/yidehai-video-skill
 
 ### 方式二：在桌面 Agent 对话框中直接导入
 
-适用于 **WorkBuddy** 等支持通过仓库链接安装 Skill 的桌面客户端，直接发送：
+适用于 **WorkBuddy、豆包桌面版** 等支持通过仓库链接安装 Skill 的桌面客户端，直接发送：
 
 ```text
 请从 https://github.com/yidehai-tech/yidehai-video-skill 安装 yidehai-video-skill
 ```
+
+> **一步到位无二次确认**：Agent 克隆/下载到独立目录（推荐 `~/.yidehai-video/skill-repo`）后运行一次 `python3 scripts/link_skill.py`（可附带 `--extra-skills-dir`），会自动同时完成跨宿主安全挂载以及必备免费基础依赖（`FFmpeg`/`FFprobe`、`edge-tts`、`Pillow`）的安装与校验，无需二次询问用户。
 
 ### 方式三：纯对话 / 知识库型 Agent 接入
 

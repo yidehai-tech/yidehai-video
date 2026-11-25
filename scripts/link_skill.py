@@ -15,17 +15,24 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import importlib.util
 import json
 import os
 import shutil
 import subprocess
 import sys
+import tempfile
+import urllib.request
+import zipfile
 from pathlib import Path
 
 SKILL_NAME = "yidehai-video-skill"
 SKILL_ROOT = Path(__file__).resolve().parent.parent
+APP_DIR = Path.home() / ".yidehai-video"
+APP_BIN_DIR = APP_DIR / "bin"
 SYNC_MARKER_NAME = ".yidehai-skill-sync.json"
 COPY_IGNORE_NAMES = {".git", "__pycache__", ".DS_Store", ".pytest_cache"}
+PYPI_MIRROR = "https://pypi.tuna.tsinghua.edu.cn/simple"
 
 KNOWN_HOST_SKILL_DIRS = [
     ("agents-standard", Path.home() / ".agents" / "skills"),
@@ -198,6 +205,148 @@ def ensure_project_agents_md(project_dir: Path, dry_run: bool = False) -> dict:
     return {"file": str(agents_md), "status": "created"}
 
 
+def _find_ffmpeg_pair() -> tuple[str | None, str | None]:
+    """检测本机或 ~/.yidehai-video/bin 是否已具备可用的 ffmpeg / ffprobe。"""
+    is_win = sys.platform.startswith("win")
+    ff_name = "ffmpeg.exe" if is_win else "ffmpeg"
+    fp_name = "ffprobe.exe" if is_win else "ffprobe"
+
+    def _find(name: str, bare: str) -> str | None:
+        local_cand = APP_BIN_DIR / name
+        if local_cand.is_file():
+            return str(local_cand)
+        w = shutil.which(name) or shutil.which(bare)
+        if w and (not is_win or w.lower().endswith(".exe")):
+            return w
+        return None
+
+    return _find(ff_name, "ffmpeg"), _find(fp_name, "ffprobe")
+
+
+def _install_win_ffmpeg_to_app_bin() -> tuple[bool, str]:
+    """Windows 下优先 winget，其次直拉静态包将 ffmpeg.exe / ffprobe.exe 放入 ~/.yidehai-video/bin。"""
+    APP_BIN_DIR.mkdir(parents=True, exist_ok=True)
+    if shutil.which("winget"):
+        proc = subprocess.run(
+            [
+                "winget", "install", "-e", "--id", "Gyan.FFmpeg",
+                "--accept-source-agreements", "--accept-package-agreements", "--silent",
+            ],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+        )
+        # winget 刚装完当前进程 PATH 可能未刷新，主动扫描 WinGet 安装目录拷贝到 ~/.yidehai-video/bin 立即可用
+        local_app = os.environ.get("LOCALAPPDATA")
+        if local_app:
+            winget_pkgs = Path(local_app) / "Microsoft" / "WinGet" / "Packages"
+            if winget_pkgs.is_dir():
+                for ff in winget_pkgs.rglob("ffmpeg.exe"):
+                    fp = ff.parent / "ffprobe.exe"
+                    if fp.is_file():
+                        shutil.copy2(ff, APP_BIN_DIR / "ffmpeg.exe")
+                        shutil.copy2(fp, APP_BIN_DIR / "ffprobe.exe")
+                        return True, "installed_via_winget"
+        ff, fp = _find_ffmpeg_pair()
+        if ff and fp:
+            return True, "installed_via_winget"
+        _ = proc
+
+    # 兜底：经国内镜像直接拉取 BtbN Windows 静态编译包并解压提取 ffmpeg.exe / ffprobe.exe
+    raw_url = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
+    urls = [f"https://gh-proxy.com/{raw_url}", f"https://ghfast.top/{raw_url}", raw_url]
+    with tempfile.TemporaryDirectory() as td:
+        zip_path = Path(td) / "ffmpeg.zip"
+        downloaded = False
+        for u in urls:
+            try:
+                req = urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0 (yidehai-video-skill/2.6)"})
+                with urllib.request.urlopen(req, timeout=90) as resp, open(zip_path, "wb") as f:
+                    while True:
+                        chunk = resp.read(131072)
+                        if not chunk:
+                            break
+                        f.write(chunk)
+                if zip_path.stat().st_size > 1_000_000:
+                    downloaded = True
+                    break
+            except Exception:
+                zip_path.unlink(missing_ok=True)
+                continue
+        if not downloaded:
+            return False, "download_failed"
+        try:
+            with zipfile.ZipFile(zip_path, "r") as zf:
+                found_ff = found_fp = False
+                for member in zf.namelist():
+                    low = member.lower()
+                    if low.endswith("/bin/ffmpeg.exe"):
+                        with zf.open(member) as src, open(APP_BIN_DIR / "ffmpeg.exe", "wb") as dst:
+                            shutil.copyfileobj(src, dst)
+                        found_ff = True
+                    elif low.endswith("/bin/ffprobe.exe"):
+                        with zf.open(member) as src, open(APP_BIN_DIR / "ffprobe.exe", "wb") as dst:
+                            shutil.copyfileobj(src, dst)
+                        found_fp = True
+                if found_ff and found_fp:
+                    return True, "installed_via_static_zip"
+        except Exception as exc:
+            return False, f"extract_failed:{exc}"
+    return False, "ffmpeg_not_found_in_archive"
+
+
+def ensure_core_dependencies(dry_run: bool = False) -> dict:
+    """安装阶段一次性补齐视频生产必备的免费基础依赖（Pillow、edge-tts、ffmpeg/ffprobe），避免二次确认。"""
+    report: dict = {"python_packages": {}, "ffmpeg": {}}
+
+    # 1) Python 必备包：Pillow（大字报/封面排版）、edge-tts（中文 AI 旁白）
+    pkg_specs = [("Pillow", "PIL"), ("edge-tts", "edge_tts")]
+    missing_pkgs = [pip_name for pip_name, mod_name in pkg_specs if importlib.util.find_spec(mod_name) is None]
+    for pip_name, mod_name in pkg_specs:
+        if importlib.util.find_spec(mod_name) is not None:
+            report["python_packages"][pip_name] = "already_installed"
+    if missing_pkgs:
+        if dry_run:
+            for p in missing_pkgs:
+                report["python_packages"][p] = "would_install"
+        else:
+            cmd = [sys.executable, "-m", "pip", "install", "-i", PYPI_MIRROR, "--quiet", *missing_pkgs]
+            proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
+            if proc.returncode == 0:
+                for p in missing_pkgs:
+                    report["python_packages"][p] = "installed"
+            else:
+                # 若全局 pip 受限，自动回退 --user
+                proc2 = subprocess.run(
+                    [sys.executable, "-m", "pip", "install", "--user", "-i", PYPI_MIRROR, "--quiet", *missing_pkgs],
+                    capture_output=True, text=True, encoding="utf-8", errors="replace",
+                )
+                for p in missing_pkgs:
+                    report["python_packages"][p] = "installed_user" if proc2.returncode == 0 else f"failed:{(proc2.stderr or proc.stderr).strip()[-200:]}"
+
+    # 2) ffmpeg / ffprobe
+    ff, fp = _find_ffmpeg_pair()
+    if ff and fp:
+        report["ffmpeg"] = {"status": "already_installed", "ffmpeg": ff, "ffprobe": fp}
+    elif dry_run:
+        report["ffmpeg"] = {"status": "would_install"}
+    else:
+        if sys.platform.startswith("win"):
+            ok, detail = _install_win_ffmpeg_to_app_bin()
+            ff2, fp2 = _find_ffmpeg_pair()
+            report["ffmpeg"] = {"status": detail if ok else f"failed:{detail}", "ffmpeg": ff2, "ffprobe": fp2}
+        elif sys.platform == "darwin" and shutil.which("brew"):
+            proc = subprocess.run(["brew", "install", "ffmpeg"], capture_output=True, text=True, encoding="utf-8", errors="replace")
+            ff2, fp2 = _find_ffmpeg_pair()
+            report["ffmpeg"] = {
+                "status": "installed_via_brew" if (proc.returncode == 0 and ff2 and fp2) else f"failed:{proc.stderr.strip()[-200:]}",
+                "ffmpeg": ff2,
+                "ffprobe": fp2,
+            }
+        else:
+            report["ffmpeg"] = {"status": "manual_required", "hint": "请使用系统包管理器安装 ffmpeg（含 ffprobe）。"}
+
+    return report
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="将 yidehai-video-skill 跨宿主挂载/同步到本机各 Agent 与项目目录")
     parser.add_argument("--project-dir", default="", help="可选：目标业务项目目录（挂载 .agents/skills 与 .skills 并写入 AGENTS.md）")
@@ -210,6 +359,7 @@ def main() -> None:
         help="挂载模式：auto（macOS/Linux 软链，Windows 安全镜像复制防宿主清理穿透删真源）、copy、symlink、junction",
     )
     parser.add_argument("--force-sync", action="store_true", help="copy 模式下若目标目录已存在但非托管副本，允许强制覆盖同步")
+    parser.add_argument("--skip-deps", action="store_true", help="跳过基础免费依赖（ffmpeg / edge-tts / Pillow）自动检测与安装")
     parser.add_argument("--dry-run", action="store_true", help="仅预览将要执行的挂载操作，不实际修改文件系统")
     args = parser.parse_args()
 
@@ -221,6 +371,7 @@ def main() -> None:
         "user_hosts": [],
         "extra_dirs": [],
         "project": {},
+        "dependencies": {},
     }
 
     # 避坑检测：若真源位于单一宿主私有管理目录（如 .workbuddy/skills），存在被宿主自动回收/清空风险
@@ -275,6 +426,9 @@ def main() -> None:
             dry_run=args.dry_run,
         )
         results["project"]["agents_md"] = ensure_project_agents_md(proj, dry_run=args.dry_run)
+
+    if not args.skip_deps:
+        results["dependencies"] = ensure_core_dependencies(dry_run=args.dry_run)
 
     results["agent_self_heal_hint"] = (
         "若当前 Agent 自身的技能根目录不在上述 user_hosts 列表中，请 Agent 主动查找自身技能目录并自动执行："

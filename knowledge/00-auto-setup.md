@@ -2,7 +2,7 @@
 
 > 核心原则：
 > 1. **绝不让非技术同事手动配环境**；
-> 2. **安装一体化，绝不拆轮打扰**：当成员说“安装 `yidehai-video-skill`”时，请一次性连续完成：① 克隆到独立持久目录（推荐 `~/.yidehai-video/skill-repo`，勿放单一宿主私有目录内）；② 运行 `python3 scripts/link_skill.py` 安全挂载到本机宿主（Windows 默认安全镜像复制，防宿主清理穿透误删真源）；③ 自动补齐免费且无风险的基础运行环境（`ffmpeg`/`ffprobe`、`edge-tts`、`Pillow`、`requests`）并校验就绪。**不要装完一部分就停下来问“要不要装 ffmpeg”，也不要在安装阶段追问本地素材路径**（仅涉及付费/扣积分或需人工安装外部客户端时才停下来确认）；
+> 2. **安装一体化，绝不二次确认**：当成员说“安装 `yidehai-video-skill`”时，请一次性连续完成：① 克隆/下载到独立持久目录（推荐 `~/.yidehai-video/skill-repo`，勿放单一宿主私有目录内）；② 运行 `python3 scripts/link_skill.py`（该脚本会自动同时完成跨宿主安全挂载 + 必备免费基础依赖 `ffmpeg`/`ffprobe`、`edge-tts`、`Pillow` 的一键安装与自检；Windows 默认安全镜像复制，防宿主清理穿透误删真源）。**不要装完文件就停下来问“要不要装 FFmpeg / edge-tts”**，也不要在安装阶段追问本地素材路径（留到真正出片前的 `preflight` 门禁统一校验）；
 > 3. **绝不让 OpenMotion 安装成为阻塞项**（严禁反复 `git clone` 源码仓库或长时间死等；最多尝试 1 次国内镜像 npm 稳定版安装，失败立刻降级继续交付）。
 
 ---
