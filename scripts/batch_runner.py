@@ -44,11 +44,7 @@ TYPE_DISPLAY = {
     "motion": "动效片",
 }
 
-FORBIDDEN_TERMS = [
-    "顺丰", "京东", "当场结算", "当场结钱", "秒到账", "即时到账", "立返", "马上打钱",
-    "微信搜", "搜一搜", "加微信", "看主页", "点左下角", "点我头像", "点头像",
-    "评论区扣", "私信我", "私信领",
-]
+FORBIDDEN_TERMS = media_manager.FORBIDDEN_TERMS
 
 
 def normalize_type(raw: str) -> str:

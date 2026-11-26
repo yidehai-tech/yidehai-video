@@ -224,7 +224,7 @@ def _build_checklist_film(item: dict, duration: float, th: dict) -> str:
     else:
         hero_num, hero_unit = "5", "KG起收"
 
-    cards = lines[:4] if len(lines) >= 3 else (lines + ["专人免费上门 · 带秤当面称重", "回收款按订单流程结算"])[:3]
+    cards = lines[:4] if len(lines) >= 3 else (lines + ["专人免费上门取件 · 不用自己扛下楼", "回收款按订单流程结算"])[:3]
     card_html = []
     card_tweens = []
     step_gap = min(1.35, max(0.85, (duration - 3.2) / max(1, len(cards))))
@@ -291,7 +291,7 @@ def _build_checklist_film(item: dict, duration: float, th: dict) -> str:
 def _build_kinetic_film(item: dict, duration: float, th: dict) -> str:
     title = html.escape(str(item.get("title", "旧衣服别再塞爆衣柜")).replace("\n", "\n"))
     lines = _extract_lines(item)
-    question = html.escape(str(item.get("question", "专人免费上门 · 当面称重")))
+    question = html.escape(str(item.get("question", "专人免费上门取件 · 省心不折腾")))
 
     n = max(1, len(lines))
     b1 = html.escape("\n".join(lines[: max(1, n // 3)]))
