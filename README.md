@@ -1,6 +1,6 @@
-# yidehai-video-skill
+# yidehai-video
 
-![Version](https://img.shields.io/badge/version-2.6.7-2B8A3E)
+![Version](https://img.shields.io/badge/version-2.7.0-2B8A3E)
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue)
 ![Standard](https://img.shields.io/badge/Agent%20Skills-SKILL.md-orange)
 
@@ -40,7 +40,7 @@
 适用于 **Claude Code、Codex、Cursor、Antigravity、OpenClaw** 等支持标准 Skill CLI 的工具：
 
 ```bash
-npx skills add yidehai-tech/yidehai-video-skill
+npx skills add yidehai-tech/yidehai-video
 ```
 
 ### 方式二：在桌面 Agent 对话框中直接导入
@@ -48,7 +48,7 @@ npx skills add yidehai-tech/yidehai-video-skill
 适用于 **WorkBuddy、豆包桌面版** 等支持通过仓库链接安装 Skill 的桌面客户端，直接发送：
 
 ```text
-请从 https://github.com/yidehai-tech/yidehai-video-skill 安装 yidehai-video-skill
+请从 https://github.com/yidehai-tech/yidehai-video 安装 yidehai-video
 ```
 
 > **一步到位无二次确认**：Agent 克隆/下载到独立目录（推荐 `~/.yidehai-video/skill-repo`）后运行一次 `python3 scripts/link_skill.py`（可附带 `--extra-skills-dir`），会自动同时完成跨宿主安全挂载以及必备免费基础依赖（`FFmpeg`/`FFprobe`、`edge-tts`、`Pillow`）的安装与校验，无需二次询问用户。
@@ -64,7 +64,7 @@ npx skills add yidehai-tech/yidehai-video-skill
 
 - **非技术用户直接用自然语言**：在任意新换的桌面 Agent 对话框里说一句：
   ```text
-  请帮我把 yidehai-video-skill 自动挂载到当前项目和你自己的技能目录里
+  请帮我把 yidehai-video 自动挂载到当前项目和你自己的技能目录里
   ```
   Agent 会自动识别自身目录并静默完成挂载（若未在默认列表里，也会由 Agent 主动调用 `--extra-skills-dir` 自愈解决，无需用户手敲命令）。
 - **开发者手动执行（可选）**：
@@ -130,7 +130,7 @@ python3 scripts/media_manager.py config --set-image-source ask
 ## 目录结构
 
 ```text
-yidehai-video-skill/
+yidehai-video/
 ├── SKILL.md                               # Skill 入口：L1/L2/L3 适配、7 形态工作流与合规自检
 ├── README.md                              # 项目说明文档
 ├── knowledge/
@@ -165,6 +165,6 @@ yidehai-video-skill/
 - **基础运行环境（L1 桌面执行型）**：`Python 3.10+`、`FFmpeg / FFprobe`、`Pillow`；使用 `动效片` / `实拍混剪` / `AI 包装` 时需 `Node.js ≥ 22`（国内镜像自动安装 `OpenMotion` 与 `HeyGen HyperFrames`）。
 - **同步最新版本**：在桌面 Agent 中直接执行：
   ```text
-  更新一下 yidehai-video-skill
+  更新一下 yidehai-video
   ```
-  或通过 `npx skills add yidehai-tech/yidehai-video-skill` 重新拉取。
+  或通过 `npx skills add yidehai-tech/yidehai-video` 重新拉取。

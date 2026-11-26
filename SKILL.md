@@ -1,10 +1,10 @@
 ---
-name: yidehai-video-skill
+name: yidehai-video
 description: >-
   亿德海（yidehai）团队短视频创作与批量出片 Skill（全面兼容市面上所有主流 AI Agent 工具：WorkBuddy、Claude Code、Codex、Cursor、Antigravity、OpenClaw 等桌面执行型 Agent，以及豆包、通义千问、Kimi、扣子等对话/知识库型 Agent）。
   统一 7 大中文视频形态：「大字报」、「动效片」、「实拍混剪」、「图文故事片」（短视频+小红书轮播一鱼两吃）、「即梦片」、「Flow片」、「口播包装」，支持单条精做与批量出片，具备按宿主能力自动分级适配（有终端自动渲染出片；纯对话宿主自动交付满血合规脚本 + 双封面字 + 可直接粘贴的即梦/Flow 防穿帮 Prompt）。
   当团队成员说“帮我做一条旧衣回收视频”、“做一条大字报/动效片/实拍混剪/图文故事片/即梦片/Flow片/口播包装”、“帮我批量生成 50/100 条视频”、“初始化/配置素材路径”、“更新视频助手”时，自动按本 Skill 执行。
-version: "2.6.7"
+version: "2.7.0"
 ---
 
 # 亿德海团队短视频创作与出片 Skill
@@ -70,7 +70,7 @@ version: "2.6.7"
 
 > **零打扰与成片完整性硬原则**：
 > - **绝不静默扣积分（宿主内置工具 / 即梦 / Flow 均需成员明确选择）**：国内 Agent（WorkBuddy、豆包、通义千问、扣子等）通常自带生图/生视频工具，但均消耗积分。成员只说“帮我做一条视频”或“批量生成 50 条视频”时，**永远只用 0 积分的免费形态**（单条默认 `大字报`/`动效片`/`实拍混剪`；批量默认 50% `大字报` + 50% `动效片`）。当任务需要生图或 AI 生视频时，**必须让成员明确选择渠道**（例如「调用当前工具内置生图 / 走即梦 CLI / 走免费外部 API / 用本地素材」），严禁未经确认静默扣分。
-> - **安装一体化，不拆轮请示**：当成员说“安装 `yidehai-video-skill`”时，克隆到独立持久化目录（推荐 `~/.yidehai-video/skill-repo`）、运行 `scripts/link_skill.py` 安全挂载、以及安装免费且无风险的基础运行环境（`ffmpeg`/`ffprobe`、`edge-tts`、`Pillow`、`requests`）应**一口气连续完成并验证**，不要每步停下来问「要不要装」。
+> - **安装一体化，不拆轮请示**：当成员说“安装 `yidehai-video`”时，克隆到独立持久化目录（推荐 `~/.yidehai-video/skill-repo`）、运行 `scripts/link_skill.py` 安全挂载、以及安装免费且无风险的基础运行环境（`ffmpeg`/`ffprobe`、`edge-tts`、`Pillow`、`requests`）应**一口气连续完成并验证**，不要每步停下来问「要不要装」。
 > - **硬红线：严禁在缺少必需素材/Key 时跳过直接生成半成品**：为避免全员撞画面，本 Skill **不预置公用风景空镜包**；视频背景、音乐、图源等关键配置缺失时，**必须拦截并先让用户一次性补齐，绝不允许回落纯色底或静默丢音乐产出不完整/失败作品**！
 > - **禁止反复弹窗问选题**：成员没指定主题时直接按四维矩阵自动选未重复选题（除非成员明确要求“先给我几个选题挑挑”）。
 
@@ -132,4 +132,4 @@ python3 scripts/media_manager.py preflight --track <poster|motion|montage|storyb
 
 ## 四、Skill 更新时联动升级依赖
 
-当成员说「更新一下 `yidehai-video-skill`」或「同步最新视频助手」时，按 `knowledge/00-auto-setup.md` 第六节同步拉取最新 Skill 并联动升级已装的 `hyperframes` / `@openmotion/app` / `edge-tts`（单步失败不阻塞正常使用）。
+当成员说「更新一下 `yidehai-video`」或「同步最新视频助手」时，按 `knowledge/00-auto-setup.md` 第六节同步拉取最新 Skill 并联动升级已装的 `hyperframes` / `@openmotion/app` / `edge-tts`（单步失败不阻塞正常使用）。

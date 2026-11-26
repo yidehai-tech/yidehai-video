@@ -234,7 +234,7 @@ def download_file(url: str, dest: Path, timeout: int = 30) -> bool:
     for candidate_url in urls_to_try:
         req = urllib.request.Request(
             candidate_url,
-            headers={"User-Agent": "Mozilla/5.0 (yidehai-video-skill/2.1)"},
+            headers={"User-Agent": "Mozilla/5.0 (yidehai-video/2.7)"},
         )
         try:
             with urllib.request.urlopen(req, timeout=timeout) as resp, open(tmp, "wb") as f:
@@ -297,7 +297,7 @@ def fetch_from_pexels(api_key: str, query: str, count: int, target_dir: Path) ->
     url = f"https://api.pexels.com/videos/search?{q}"
     req = urllib.request.Request(
         url,
-        headers={"Authorization": api_key, "User-Agent": "yidehai-video-skill/2.2"},
+        headers={"Authorization": api_key, "User-Agent": "yidehai-video/2.7"},
     )
     downloaded: list[Path] = []
     data = None
@@ -353,7 +353,7 @@ def fetch_from_pixabay(api_key: str, query: str, count: int, target_dir: Path) -
         "page": random.randint(1, 4),
     })
     url = f"https://pixabay.com/api/videos/?{q}"
-    req = urllib.request.Request(url, headers={"User-Agent": "yidehai-video-skill/1.6"})
+    req = urllib.request.Request(url, headers={"User-Agent": "yidehai-video/2.7"})
     downloaded: list[Path] = []
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
@@ -394,7 +394,7 @@ def fetch_from_jamendo(client_id: str, count: int, target_dir: Path) -> list[Pat
         "offset": random.randint(0, 40),
     })
     url = f"https://api.jamendo.com/v3.0/tracks/?{q}"
-    req = urllib.request.Request(url, headers={"User-Agent": "yidehai-video-skill/1.7"})
+    req = urllib.request.Request(url, headers={"User-Agent": "yidehai-video/2.7"})
     downloaded: list[Path] = []
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
@@ -427,7 +427,7 @@ def fetch_stock_images(pexels_key: str, pixabay_key: str, query: str, count: int
         q = urllib.parse.urlencode({"query": query, "orientation": "portrait", "per_page": min(max(count * 2, 6), 20)})
         req = urllib.request.Request(
             f"https://api.pexels.com/v1/search?{q}",
-            headers={"Authorization": pexels_key, "User-Agent": "yidehai-video-skill/2.6"},
+            headers={"Authorization": pexels_key, "User-Agent": "yidehai-video/2.7"},
         )
         try:
             with urllib.request.urlopen(req, timeout=15) as resp:
@@ -449,7 +449,7 @@ def fetch_stock_images(pexels_key: str, pixabay_key: str, query: str, count: int
 
     if pixabay_key and len(downloaded) < count:
         q = urllib.parse.urlencode({"key": pixabay_key, "q": query, "image_type": "photo", "orientation": "vertical", "per_page": min(max(count * 2, 6), 20)})
-        req = urllib.request.Request(f"https://pixabay.com/api/?{q}", headers={"User-Agent": "yidehai-video-skill/2.6"})
+        req = urllib.request.Request(f"https://pixabay.com/api/?{q}", headers={"User-Agent": "yidehai-video/2.7"})
         try:
             with urllib.request.urlopen(req, timeout=15) as resp:
                 data = json.loads(resp.read().decode("utf-8"))

@@ -6,31 +6,31 @@
       "id": "lyria-01-sunset-piano",
       "mood": "落日抒情钢琴+轻吉他",
       "duration_sec": 172,
-      "url": "https://github.com/yidehai-tech/yidehai-video-skill/releases/download/bgm-pack-v1/01-sunset-piano.mp3"
+      "url": "https://github.com/yidehai-tech/yidehai-video/releases/download/bgm-pack-v1/01-sunset-piano.mp3"
     },
     {
       "id": "lyria-02-morning-breeze-strings",
       "mood": "清晨微风弦乐+毛毡钢琴",
       "duration_sec": 156,
-      "url": "https://github.com/yidehai-tech/yidehai-video-skill/releases/download/bgm-pack-v1/02-morning-breeze-strings.mp3"
+      "url": "https://github.com/yidehai-tech/yidehai-video/releases/download/bgm-pack-v1/02-morning-breeze-strings.mp3"
     },
     {
       "id": "lyria-03-cozy-home-lofi",
       "mood": "居家收纳Lo-fi轻电钢",
       "duration_sec": 173,
-      "url": "https://github.com/yidehai-tech/yidehai-video-skill/releases/download/bgm-pack-v1/03-cozy-home-lofi.mp3"
+      "url": "https://github.com/yidehai-tech/yidehai-video/releases/download/bgm-pack-v1/03-cozy-home-lofi.mp3"
     },
     {
       "id": "lyria-04-acoustic-lifestyle",
       "mood": "清脆木吉他+干货节奏",
       "duration_sec": 146,
-      "url": "https://github.com/yidehai-tech/yidehai-video-skill/releases/download/bgm-pack-v1/04-acoustic-lifestyle.mp3"
+      "url": "https://github.com/yidehai-tech/yidehai-video/releases/download/bgm-pack-v1/04-acoustic-lifestyle.mp3"
     },
     {
       "id": "lyria-05-autumn-felt-piano",
       "mood": "秋冬温暖毛毡钢琴独奏",
       "duration_sec": 157,
-      "url": "https://github.com/yidehai-tech/yidehai-video-skill/releases/download/bgm-pack-v1/05-autumn-felt-piano.mp3"
+      "url": "https://github.com/yidehai-tech/yidehai-video/releases/download/bgm-pack-v1/05-autumn-felt-piano.mp3"
     }
   ]
 }

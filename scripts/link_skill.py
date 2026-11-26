@@ -26,7 +26,8 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-SKILL_NAME = "yidehai-video-skill"
+SKILL_NAME = "yidehai-video"
+LEGACY_SKILL_NAMES = ("yidehai-video-skill",)
 SKILL_ROOT = Path(__file__).resolve().parent.parent
 APP_DIR = Path.home() / ".yidehai-video"
 APP_BIN_DIR = APP_DIR / "bin"
@@ -55,18 +56,18 @@ KNOWN_HOST_SKILL_DIRS = [
     ("opencode", Path.home() / ".opencode" / "skills"),
 ]
 
-AGENTS_MD_MARKER = "<!-- yidehai-video-skill:auto-routing -->"
+AGENTS_MD_MARKER = "<!-- yidehai-video:auto-routing -->"
 
 AGENTS_MD_BLOCK = f"""
 {AGENTS_MD_MARKER}
 ## 亿德海短视频与图文生产规范（跨 Agent 通用兜底入口）
 
-本项目所有旧衣回收相关的短视频、大字报、动效片、图文故事片、小红书轮播图、即梦/Flow AI 视频与口播包装任务，开工前**必须先读取并严格遵循** `yidehai-video-skill/SKILL.md`（优先查找当前项目 `.agents/skills/yidehai-video-skill/SKILL.md` 或 `.skills/yidehai-video-skill/SKILL.md`）：
+本项目所有旧衣回收相关的短视频、大字报、动效片、图文故事片、小红书轮播图、即梦/Flow AI 视频与口播包装任务，开工前**必须先读取并严格遵循** `yidehai-video/SKILL.md`（优先查找当前项目 `.agents/skills/yidehai-video/SKILL.md` 或 `.skills/yidehai-video/SKILL.md`）：
 
 1. 严守 `knowledge/01-brand-rules.md` 合规硬红线（0 禁用词、无底部品牌浮条、无全屏静态尾卡）；
 2. **严禁未经用户明确选择静默扣积分调用宿主内置生图/生视频、即梦 CLI 或 Google Flow**；
 3. **生成前硬门禁（严禁出残缺半成品）**：每次出片前必须先执行 `python3 <skill_dir>/scripts/media_manager.py preflight --track <轨道>`；缺背景视频源/音乐源/图源 Key 或素材目录时必须先让用户补齐并持久化到 `~/.yidehai-video/config.json`，严禁跳过回落纯色底或无声失败作品；
-4. **Agent 自动自愈挂载（绝不让用户手动敲命令）**：如果你是首次打开本项目、且发现 `yidehai-video-skill` 尚未出现在你自己的原生技能清单里，请立刻主动确认你自身的技能根目录并自动执行一次 `python3 <skill_dir>/scripts/link_skill.py --skip-user-hosts --extra-skills-dir "<你的技能根目录>"` 完成静默挂载（Windows 默认安全镜像复制，防宿主清理误删真源），不要把命令甩给用户自己跑。
+4. **Agent 自动自愈挂载（绝不让用户手动敲命令）**：如果你是首次打开本项目、且发现 `yidehai-video` 尚未出现在你自己的原生技能清单里，请立刻主动确认你自身的技能根目录并自动执行一次 `python3 <skill_dir>/scripts/link_skill.py --skip-user-hosts --extra-skills-dir "<你的技能根目录>"` 完成静默挂载（Windows 默认安全镜像复制，防宿主清理误删真源），不要把命令甩给用户自己跑。
 """
 
 
@@ -129,7 +130,7 @@ def _sync_copy_dir(source: Path, dest: Path, force_sync: bool = False, dry_run: 
         ignore=shutil.ignore_patterns(*COPY_IGNORE_NAMES),
     )
     marker = {
-        "managed_by": "yidehai-video-skill/scripts/link_skill.py",
+        "managed_by": "yidehai-video/scripts/link_skill.py",
         "source": str(source),
         "synced_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
     }
@@ -258,7 +259,7 @@ def _install_win_ffmpeg_to_app_bin() -> tuple[bool, str]:
         downloaded = False
         for u in urls:
             try:
-                req = urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0 (yidehai-video-skill/2.6)"})
+                req = urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0 (yidehai-video/2.7)"})
                 with urllib.request.urlopen(req, timeout=90) as resp, open(zip_path, "wb") as f:
                     while True:
                         chunk = resp.read(131072)
@@ -347,8 +348,30 @@ def ensure_core_dependencies(dry_run: bool = False) -> dict:
     return report
 
 
+def cleanup_legacy_mounts(skills_parent: Path, source: Path, dry_run: bool = False) -> list[str]:
+    """安全清理旧名称（yidehai-video-skill）的托管副本或软链，避免同机出现重复技能条目。"""
+    cleaned: list[str] = []
+    source_resolved = source.resolve()
+    for legacy_name in LEGACY_SKILL_NAMES:
+        legacy_path = skills_parent / legacy_name
+        if not (legacy_path.exists() or _is_reparse_or_symlink(legacy_path)):
+            continue
+        # 绝不删除真源本身
+        if not _is_reparse_or_symlink(legacy_path) and _is_same_target(legacy_path, source_resolved):
+            continue
+        if _is_reparse_or_symlink(legacy_path):
+            if not dry_run:
+                _safe_remove_link_only(legacy_path)
+            cleaned.append(str(legacy_path))
+        elif legacy_path.is_dir() and (legacy_path / SYNC_MARKER_NAME).exists():
+            if not dry_run:
+                shutil.rmtree(legacy_path)
+            cleaned.append(str(legacy_path))
+    return cleaned
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="将 yidehai-video-skill 跨宿主挂载/同步到本机各 Agent 与项目目录")
+    parser = argparse.ArgumentParser(description="将 yidehai-video 跨宿主挂载/同步到本机各 Agent 与项目目录")
     parser.add_argument("--project-dir", default="", help="可选：目标业务项目目录（挂载 .agents/skills 与 .skills 并写入 AGENTS.md）")
     parser.add_argument("--extra-skills-dir", action="append", default=[], help="可选：额外宿主 skills 根目录（如豆包内置 .skills 目录，可重复传参）")
     parser.add_argument("--skip-user-hosts", action="store_true", help="跳过用户级宿主目录（仅挂载 --project-dir / --extra-skills-dir）")
@@ -387,6 +410,7 @@ def main() -> None:
         for host_name, skills_dir in KNOWN_HOST_SKILL_DIRS:
             # 仅对已安装（父目录存在）的宿主或标准 ~/.agents 创建挂载，避免制造垃圾隐藏目录
             if host_name == "agents-standard" or skills_dir.parent.exists():
+                cleanup_legacy_mounts(skills_dir, SKILL_ROOT, dry_run=args.dry_run)
                 res = install_skill_target(
                     SKILL_ROOT,
                     skills_dir / SKILL_NAME,
@@ -398,6 +422,7 @@ def main() -> None:
 
     for extra in args.extra_skills_dir:
         extra_root = Path(extra).expanduser().resolve()
+        cleanup_legacy_mounts(extra_root, SKILL_ROOT, dry_run=args.dry_run)
         res = install_skill_target(
             SKILL_ROOT,
             extra_root / SKILL_NAME,
