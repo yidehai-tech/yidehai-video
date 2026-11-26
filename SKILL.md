@@ -4,7 +4,7 @@ description: >-
   亿德海（yidehai）团队短视频创作与批量出片 Skill（全面兼容市面上所有主流 AI Agent 工具：WorkBuddy、Claude Code、Codex、Cursor、Antigravity、OpenClaw 等桌面执行型 Agent，以及豆包、通义千问、Kimi、扣子等对话/知识库型 Agent）。
   统一 9 大中文视频形态：「大字报」、「动效片」、「实拍混剪」、「实拍快剪」、「前后对比片」、「图文故事片」（短视频+小红书轮播一鱼两吃）、「即梦片」、「Flow片」、「口播包装」，支持单条精做与批量出片，具备按宿主能力自动分级适配（有终端自动渲染出片；纯对话宿主自动交付满血合规脚本 + 双封面字 + 可直接粘贴的即梦/Flow 防穿帮 Prompt）。
   当团队成员说“帮我做一条旧衣回收视频”、“做一条大字报/动效片/实拍混剪/实拍快剪/前后对比片/图文故事片/即梦片/Flow片/口播包装”、“帮我批量生成 50/100 条视频”、“初始化/配置素材路径”、“更新视频助手”时，自动按本 Skill 执行。
-version: "2.8.0"
+version: "2.9.0"
 ---
 
 # 亿德海团队短视频创作与出片 Skill
@@ -77,7 +77,7 @@ version: "2.8.0"
 > - **硬红线：严禁在缺少必需素材/Key 时跳过直接生成半成品**：为避免全员撞画面，本 Skill **不预置公用风景空镜包**；视频背景、音乐、图源等关键配置缺失时，**必须拦截并先让用户一次性补齐，绝不允许回落纯色底或静默丢音乐产出不完整/失败作品**！
 > - **禁止反复弹窗问选题**：成员没指定主题时直接按四维矩阵自动选未重复选题（除非成员明确要求“先给我几个选题挑挑”）。
 
-> **终端健康探针与快速熔断铁律（绝不死磕半小时）**：L1 桌面执行型 Agent 在跑重任务（渲染 / TTS / OpenMotion / HyperFrames）前，先跑 1 秒级探针 `python3 -c "print('shell_ok')"`。若本机 Shell 出现**连续 2 次外部命令超时或挂起转后台**（如 Windows 桌面客户端 ConPTY/PowerShell 通道卡死），**必须在 2 分钟内立刻熔断止损**——严禁轮番试 `python`/`node`/`ffmpeg`/`浏览器` 耗掉几十分钟！立刻明确告知用户「当前客户端的本地终端通道已卡死，请彻底退出重启客户端后再续渲」，并把已生成的离线制作包（`manifest.json` / 文案 / 工程文件）先交付出来。
+> **终端健康探针与快速熔断铁律（绝不死磕半小时）**：L1 桌面执行型 Agent 在跑重任务（渲染 / TTS / OpenMotion / HyperFrames）前，先跑 1 秒级探针 `python3 -c "print('shell_ok')"`。若本机 Shell 出现**连续 2 次外部命令超时或挂起转后台**（如 Windows 桌面客户端 ConPTY/PowerShell 通道卡死），**必须在 2 分钟内立刻熔断止损**——严禁轮番试 `python`/`node`/`ffmpeg`/`浏览器` 耗掉几十分钟！立刻明确告知用户「当前客户端的本地终端通道已卡死，请彻底退出重启客户端后再续渲」，先交付离线制作包（`manifest.json` / 文案 / 工程文件），并顺手运行一次 `python3 scripts/task_tracker.py record --track <轨道> --title "<标题>" --status pending_render --out-dir "<目录>"` 写入台账，方便换任意 Agent 一键接力。
 
 ### Step 0：生成前硬校验门禁（必须先过 `preflight`，缺必配项立即拦停补齐）
 
@@ -142,3 +142,21 @@ python3 scripts/media_manager.py preflight --track <poster|motion|montage|storyb
 ## 四、Skill 更新时联动升级依赖
 
 当成员说「更新一下 `yidehai-video`」或「同步最新视频助手」时，按 `knowledge/00-auto-setup.md` 第六节同步拉取最新 Skill 并联动升级已装的 `hyperframes` / `@openmotion/app` / `edge-tts`（单步失败不阻塞正常使用）。
+
+---
+
+## 五、跨 Agent 共用任务台账与本地仪表盘（人机双读 · 零后台服务）
+
+本机所有 Agent（豆包、WorkBuddy、Claude Code、Codex、Cursor 等）共用唯一的任务台账 `~/.yidehai-video/tasks.json` 与纯离线可视化仪表盘 `~/.yidehai-video/dashboard.html`（与 `used_history.json` 防重账本隔离，互不干扰）：
+
+- **全自动无感记录**：`render_poster.py`、`render_footage_video.py`、`package_ai_video.py`、`batch_runner.py` 会在开工时记 `running`（带 PID 与超时自愈为 `interrupted`），完结时记 `done` / `failed` / `pending_render` 并自动刷新 `dashboard.html`；
+- **查看统计与未完成接力**：新开会话或成员问「今天出了几条」「有哪些失败或待续渲」「打开统计面板」时，执行：
+  ```sh
+  python3 scripts/task_tracker.py summary
+  python3 scripts/task_tracker.py list --status pending_render --limit 20
+  ```
+- **手动标状态 / 补录**：成员说「把这条标成已发布 / 作废」时执行：
+  ```sh
+  python3 scripts/task_tracker.py update --id <TASK_ID> --status published
+  ```
+  并将可双击查看的面板路径 `~/.yidehai-video/dashboard.html` 顺手告诉成员（注意：跨多台电脑/多成员汇总仍请对接飞书多维表格，本地台账专管同一台机器上的跨 Agent 接力与统计）。

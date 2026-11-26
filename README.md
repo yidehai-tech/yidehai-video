@@ -1,6 +1,6 @@
 # yidehai-video
 
-![Version](https://img.shields.io/badge/version-2.8.0-2B8A3E)
+![Version](https://img.shields.io/badge/version-2.9.0-2B8A3E)
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue)
 ![Standard](https://img.shields.io/badge/Agent%20Skills-SKILL.md-orange)
 
@@ -15,7 +15,8 @@
 - **全平台 Agent 自动分级适配**：自动识别运行环境（L1 桌面执行型 / L2 轻沙箱型 / L3 纯对话知识库型），在任意工具中开箱即用。
 - **积分与费用自主选择护栏**：默认仅使用 0 积分免费轨道；调用宿主内置生图、即梦 CLI 或 Google Flow 前均要求显式选择与确认，并具备提交前原子落盘防重复扣分机制。
 - **统一成片质量标准**：默认「旁白 + 12% 真实无版权 BGM」、无底部品牌浮条与全屏静态尾卡、自动产出 `9:16` + `3:4` 双封面与 8 帧质检联系图。
-- **本机配置与防重隔离**：素材目录、API Key 与防重账本全部持久化在 `~/.yidehai-video/`，与 Skill 仓库彻底解耦。
+- **跨 Agent 共享任务台账与离线仪表盘**：`tasks.json` + 单文件静态 `dashboard.html` 自动记录各宿主出片状态、成功率、各形态分布与封面缩略图，支持跨 Agent 断点接力与僵尸中断任务自愈。
+- **本机配置与防重隔离**：素材目录、API Key、防重账本与任务台账全部持久化在 `~/.yidehai-video/`，与 Skill 仓库彻底解耦。
 
 ---
 
@@ -157,6 +158,7 @@ yidehai-video/
     ├── storybook_builder.py               # 图文故事片构建器（推镜短视频 + 小红书 3:4 轮播套图）
     ├── dreamina_runner.py                 # 即梦 CLI 防呆调度器（提交前原子落盘、防重复扣分、断点续查）
     ├── batch_runner.py                    # 批量出片调度器（断点续跑 + 可视化审片台 review.html）
+    ├── task_tracker.py                    # 跨 Agent 共享任务台账（tasks.json）与离线统计仪表盘（dashboard.html）
     ├── motion_templates.py                # 动效片三套母版（5 套浅色主题轮换，无品牌浮条）
     ├── fetch_om_components.py             # OpenMotion native 组件镜像补齐与 sha256 校验脚本
     └── link_skill.py                      # 跨宿主一键软链/联接挂载工具（解决多 Agent 目录孤岛）

@@ -34,6 +34,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 import media_manager  # noqa: E402
 import render_poster  # noqa: E402
+import task_tracker  # noqa: E402
 
 WIDTH = 1080
 HEIGHT = 1920
@@ -271,166 +272,187 @@ def main() -> None:
         out_dir = media_manager.safe_child_path(out_root, slug)
     out_dir.mkdir(parents=True, exist_ok=True)
     final_mp4 = media_manager.safe_child_path(out_dir, f"{slug}.mp4")
+    task_id = task_tracker.safe_start_task(
+        track=args.mode,
+        title=f"{title_l1} {title_l2}".strip() or slug,
+        slug=slug,
+        out_dir=str(out_dir),
+        copy_text=publish_copy or vo_text,
+    )
 
-    # 3) 校验并挑选 BGM（非 --silent 时缺源硬拦截）
-    bgm_src: Path | None = None
-    bgm_start = 0.0
-    bgm_label = "dry-voice-by-request"
-    ledger_path = Path(cfg.get("ledger_path") or media_manager.DEFAULT_LEDGER_PATH)
-    ledger = render_poster.load_ledger(ledger_path)
-    want_silent = bool(args.silent or job.get("silent"))
+    try:
+        # 3) 校验并挑选 BGM（非 --silent 时缺源硬拦截）
+        bgm_src: Path | None = None
+        bgm_start = 0.0
+        bgm_label = "dry-voice-by-request"
+        ledger_path = Path(cfg.get("ledger_path") or media_manager.DEFAULT_LEDGER_PATH)
+        ledger = render_poster.load_ledger(ledger_path)
+        want_silent = bool(args.silent or job.get("silent"))
 
-    with tempfile.TemporaryDirectory() as tmp:
-        tmp_dir = Path(tmp)
-        voice_mp3 = tmp_dir / "voice.mp3"
-        vo_cfg = job.get("voiceover") or {}
-        synthesize_edge_tts(
-            vo_text,
-            voice_mp3,
-            voice=str(vo_cfg.get("voice") or "zh-CN-XiaoxiaoNeural"),
-            rate=str(vo_cfg.get("rate") or "+12%"),
-        )
-        vo_dur = ffprobe_duration(ffprobe, voice_mp3)
-        duration = round(max(6.0, float(job.get("duration") or (vo_dur + 0.25))), 2)
-
-        if not want_silent:
-            bgm_dirs = [Path(args.bgm_dir)] if args.bgm_dir else (
-                [Path(cfg["cache_bgm_dir"])] + [Path(d) for d in cfg.get("local_bgm_dirs", [])]
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_dir = Path(tmp)
+            voice_mp3 = tmp_dir / "voice.mp3"
+            vo_cfg = job.get("voiceover") or {}
+            synthesize_edge_tts(
+                vo_text,
+                voice_mp3,
+                voice=str(vo_cfg.get("voice") or "zh-CN-XiaoxiaoNeural"),
+                rate=str(vo_cfg.get("rate") or "+12%"),
             )
-            picked_bgm = render_poster.pick_unique_bgm(bgm_dirs, duration, ledger)
-            if picked_bgm is None:
-                media_manager.ensure_online_media("bgm_tracks", count=2, cfg=cfg)
-                picked_bgm = render_poster.pick_unique_bgm([Path(cfg["cache_bgm_dir"])], duration, ledger)
-            if picked_bgm is None:
-                raise RuntimeError(
-                    "【硬拦截：缺少真实背景音乐源】未加 --silent 且本机无可用 BGM，严禁输出残缺成品。"
-                    "请配置 --add-bgm-dir 或 --set-jamendo-id，或显式传 --silent。"
+            vo_dur = ffprobe_duration(ffprobe, voice_mp3)
+            duration = round(max(6.0, float(job.get("duration") or (vo_dur + 0.25))), 2)
+
+            if not want_silent:
+                bgm_dirs = [Path(args.bgm_dir)] if args.bgm_dir else (
+                    [Path(cfg["cache_bgm_dir"])] + [Path(d) for d in cfg.get("local_bgm_dirs", [])]
                 )
-            bgm_src, bgm_start = picked_bgm
-            bgm_label = f"{bgm_src.name}@{bgm_start:.1f}s(loudnorm+18%)"
+                picked_bgm = render_poster.pick_unique_bgm(bgm_dirs, duration, ledger)
+                if picked_bgm is None:
+                    media_manager.ensure_online_media("bgm_tracks", count=2, cfg=cfg)
+                    picked_bgm = render_poster.pick_unique_bgm([Path(cfg["cache_bgm_dir"])], duration, ledger)
+                if picked_bgm is None:
+                    raise RuntimeError(
+                        "【硬拦截：缺少真实背景音乐源】未加 --silent 且本机无可用 BGM，严禁输出残缺成品。"
+                        "请配置 --add-bgm-dir 或 --set-jamendo-id，或显式传 --silent。"
+                    )
+                bgm_src, bgm_start = picked_bgm
+                bgm_label = f"{bgm_src.name}@{bgm_start:.1f}s(loudnorm+18%)"
 
-        # 4) 组装底座画面流
-        base_video = tmp_dir / "base.mp4"
-        used_names: list[str] = []
+            # 4) 组装底座画面流
+            base_video = tmp_dir / "base.mp4"
+            used_names: list[str] = []
 
-        if args.mode == "fastcut":
-            clips = job.get("clips") or []
-            if len(clips) < 3:
-                raise ValueError("fastcut 模式 job.clips 至少需要 3 个素材片段（推荐 6–8 个 1.2–2.0s 快切镜头）。")
-            seg_dur = round(duration / len(clips), 3)
-            seg_files: list[Path] = []
-            for idx, item in enumerate(clips):
-                c_path = Path(item["path"] if isinstance(item, dict) else str(item)).expanduser().resolve()
-                if not c_path.is_file():
-                    raise FileNotFoundError(f"素材文件不存在：{c_path}")
-                used_names.append(c_path.name)
-                c_start = float(item.get("start", 0.0)) if isinstance(item, dict) else 0.0
-                c_dur = float(item.get("duration", seg_dur)) if isinstance(item, dict) else seg_dur
-                seg_out = tmp_dir / f"seg_{idx:02d}.mp4"
-                render_clip_segment(ffmpeg, ffprobe, c_path, seg_out, c_dur, WIDTH, HEIGHT, start=c_start)
-                seg_files.append(seg_out)
-            concat_txt = tmp_dir / "concat.txt"
-            concat_txt.write_text("\n".join(f"file '{p.as_posix()}'" for p in seg_files) + "\n", encoding="utf-8")
-            run([
-                ffmpeg, "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", str(concat_txt),
-                "-vf", f"fps={FPS},setpts=PTS-STARTPTS,format=yuv420p",
-                "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p",
-                str(base_video),
-            ])
-        else:
-            before_item = job.get("before")
-            after_item = job.get("after")
-            if not before_item or not after_item:
-                raise ValueError("before_after 模式必须在 job.json 中同时提供 before 与 after 素材路径。")
-            b_path = Path(before_item["path"] if isinstance(before_item, dict) else str(before_item)).expanduser().resolve()
-            a_path = Path(after_item["path"] if isinstance(after_item, dict) else str(after_item)).expanduser().resolve()
-            if not b_path.is_file() or not a_path.is_file():
-                raise FileNotFoundError(f"对比素材不存在：before={b_path}, after={a_path}")
-            used_names.extend([b_path.name, a_path.name])
-            top_seg = tmp_dir / "top_before.mp4"
-            bot_seg = tmp_dir / "bot_after.mp4"
-            render_clip_segment(ffmpeg, ffprobe, b_path, top_seg, duration, WIDTH, HEIGHT // 2, start=float(before_item.get("start", 0.0)) if isinstance(before_item, dict) else 0.0)
-            render_clip_segment(ffmpeg, ffprobe, a_path, bot_seg, duration, WIDTH, HEIGHT // 2, start=float(after_item.get("start", 0.0)) if isinstance(after_item, dict) else 0.0)
-            run([
-                ffmpeg, "-y", "-v", "error", "-i", str(top_seg), "-i", str(bot_seg),
-                "-filter_complex", "[0:v][1:v]vstack=inputs=2[v]",
-                "-map", "[v]", "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p",
-                str(base_video),
-            ])
+            if args.mode == "fastcut":
+                clips = job.get("clips") or []
+                if len(clips) < 3:
+                    raise ValueError("fastcut 模式 job.clips 至少需要 3 个素材片段（推荐 6–8 个 1.2–2.0s 快切镜头）。")
+                seg_dur = round(duration / len(clips), 3)
+                seg_files: list[Path] = []
+                for idx, item in enumerate(clips):
+                    c_path = Path(item["path"] if isinstance(item, dict) else str(item)).expanduser().resolve()
+                    if not c_path.is_file():
+                        raise FileNotFoundError(f"素材文件不存在：{c_path}")
+                    used_names.append(c_path.name)
+                    c_start = float(item.get("start", 0.0)) if isinstance(item, dict) else 0.0
+                    c_dur = float(item.get("duration", seg_dur)) if isinstance(item, dict) else seg_dur
+                    seg_out = tmp_dir / f"seg_{idx:02d}.mp4"
+                    render_clip_segment(ffmpeg, ffprobe, c_path, seg_out, c_dur, WIDTH, HEIGHT, start=c_start)
+                    seg_files.append(seg_out)
+                concat_txt = tmp_dir / "concat.txt"
+                concat_txt.write_text("\n".join(f"file '{p.as_posix()}'" for p in seg_files) + "\n", encoding="utf-8")
+                run([
+                    ffmpeg, "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", str(concat_txt),
+                    "-vf", f"fps={FPS},setpts=PTS-STARTPTS,format=yuv420p",
+                    "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p",
+                    str(base_video),
+                ])
+            else:
+                before_item = job.get("before")
+                after_item = job.get("after")
+                if not before_item or not after_item:
+                    raise ValueError("before_after 模式必须在 job.json 中同时提供 before 与 after 素材路径。")
+                b_path = Path(before_item["path"] if isinstance(before_item, dict) else str(before_item)).expanduser().resolve()
+                a_path = Path(after_item["path"] if isinstance(after_item, dict) else str(after_item)).expanduser().resolve()
+                if not b_path.is_file() or not a_path.is_file():
+                    raise FileNotFoundError(f"对比素材不存在：before={b_path}, after={a_path}")
+                used_names.extend([b_path.name, a_path.name])
+                top_seg = tmp_dir / "top_before.mp4"
+                bot_seg = tmp_dir / "bot_after.mp4"
+                render_clip_segment(ffmpeg, ffprobe, b_path, top_seg, duration, WIDTH, HEIGHT // 2, start=float(before_item.get("start", 0.0)) if isinstance(before_item, dict) else 0.0)
+                render_clip_segment(ffmpeg, ffprobe, a_path, bot_seg, duration, WIDTH, HEIGHT // 2, start=float(after_item.get("start", 0.0)) if isinstance(after_item, dict) else 0.0)
+                run([
+                    ffmpeg, "-y", "-v", "error", "-i", str(top_seg), "-i", str(bot_seg),
+                    "-filter_complex", "[0:v][1:v]vstack=inputs=2[v]",
+                    "-map", "[v]", "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p",
+                    str(base_video),
+                ])
 
-        # 5) 将顶部标题 + 每句卡点字幕用 Pillow 预合成为单路互斥叠加流（O(1) 单 overlay，彻底杜绝多路 framesync 死锁）
-        top_png = tmp_dir / "top_overlay.png"
-        build_top_overlay_png(title_l1, title_l2, top_png, mode=args.mode, before_label=before_label, after_label=after_label)
-        top_img = Image.open(top_png).convert("RGBA")
+            # 5) 将顶部标题 + 每句卡点字幕用 Pillow 预合成为单路互斥叠加流（O(1) 单 overlay，彻底杜绝多路 framesync 死锁）
+            top_png = tmp_dir / "top_overlay.png"
+            build_top_overlay_png(title_l1, title_l2, top_png, mode=args.mode, before_label=before_label, after_label=after_label)
+            top_img = Image.open(top_png).convert("RGBA")
 
-        clauses = split_caption_clauses(vo_text)
-        total_chars = max(1, sum(len(c) for c in clauses))
-        ov_concat_lines: list[str] = []
-        cursor = 0.0
-        last_png = top_png
-        for idx, clause in enumerate(clauses):
-            c_len = max(0.5, (len(clause) / total_chars) * vo_dur)
-            c_png = tmp_dir / f"cap_{idx:02d}.png"
-            build_caption_png(clause, c_png)
-            merged = top_img.copy()
-            merged.alpha_composite(Image.open(c_png).convert("RGBA"))
-            ov_png = tmp_dir / f"ov_{idx:02d}.png"
-            merged.save(ov_png, "PNG")
-            ov_concat_lines.append(f"file '{ov_png.as_posix()}'")
-            ov_concat_lines.append(f"duration {c_len:.3f}")
-            cursor += c_len
-            last_png = ov_png
-        if cursor < duration:
-            ov_concat_lines.append(f"file '{top_png.as_posix()}'")
-            ov_concat_lines.append(f"duration {max(0.1, duration - cursor):.3f}")
+            clauses = split_caption_clauses(vo_text)
+            total_chars = max(1, sum(len(c) for c in clauses))
+            ov_concat_lines: list[str] = []
+            cursor = 0.0
             last_png = top_png
-        ov_concat_lines.append(f"file '{last_png.as_posix()}'")
-        ov_concat_txt = tmp_dir / "ov_concat.txt"
-        ov_concat_txt.write_text("\n".join(ov_concat_lines) + "\n", encoding="utf-8")
+            for idx, clause in enumerate(clauses):
+                c_len = max(0.5, (len(clause) / total_chars) * vo_dur)
+                c_png = tmp_dir / f"cap_{idx:02d}.png"
+                build_caption_png(clause, c_png)
+                merged = top_img.copy()
+                merged.alpha_composite(Image.open(c_png).convert("RGBA"))
+                ov_png = tmp_dir / f"ov_{idx:02d}.png"
+                merged.save(ov_png, "PNG")
+                ov_concat_lines.append(f"file '{ov_png.as_posix()}'")
+                ov_concat_lines.append(f"duration {c_len:.3f}")
+                cursor += c_len
+                last_png = ov_png
+            if cursor < duration:
+                ov_concat_lines.append(f"file '{top_png.as_posix()}'")
+                ov_concat_lines.append(f"duration {max(0.1, duration - cursor):.3f}")
+                last_png = top_png
+            ov_concat_lines.append(f"file '{last_png.as_posix()}'")
+            ov_concat_txt = tmp_dir / "ov_concat.txt"
+            ov_concat_txt.write_text("\n".join(ov_concat_lines) + "\n", encoding="utf-8")
 
-        # 6) 合成最终视频（先将音频独立混音，再单路合成视频，彻底杜绝复杂滤镜图音画同步死锁）
-        mixed_audio = tmp_dir / "mixed_audio.m4a"
-        fade_out_st = max(0.0, duration - 0.9)
-        if bgm_src is not None:
-            bgm_dur = ffprobe_duration(ffprobe, bgm_src)
-            acmd = [ffmpeg, "-y", "-v", "error", "-i", str(voice_mp3)]
-            if bgm_dur < duration + bgm_start:
-                acmd += ["-stream_loop", "-1"]
-            acmd += [
-                "-ss", f"{bgm_start:.2f}", "-t", f"{duration:.2f}", "-i", str(bgm_src),
-                "-filter_complex",
-                f"[0:a]aresample=48000,loudnorm=I=-14:TP=-1.5:LRA=7,apad=whole_dur={duration:.2f},atrim=0:{duration:.2f}[va];"
-                f"[1:a]atrim=0:{duration:.2f},asetpts=PTS-STARTPTS,aresample=48000,loudnorm=I=-16:TP=-2:LRA=11,afade=t=in:st=0:d=0.6,afade=t=out:st={fade_out_st:.2f}:d=0.9,volume=0.18[ba];"
-                f"[va][ba]amix=inputs=2:normalize=0:duration=first:dropout_transition=0,alimiter=limit=0.95[aout]",
-                "-map", "[aout]", "-c:a", "aac", "-b:a", "192k", "-t", f"{duration:.2f}", str(mixed_audio),
-            ]
-            run(acmd)
-        else:
+            # 6) 合成最终视频（先将音频独立混音，再单路合成视频，彻底杜绝复杂滤镜图音画同步死锁）
+            mixed_audio = tmp_dir / "mixed_audio.m4a"
+            fade_out_st = max(0.0, duration - 0.9)
+            if bgm_src is not None:
+                bgm_dur = ffprobe_duration(ffprobe, bgm_src)
+                acmd = [ffmpeg, "-y", "-v", "error", "-i", str(voice_mp3)]
+                if bgm_dur < duration + bgm_start:
+                    acmd += ["-stream_loop", "-1"]
+                acmd += [
+                    "-ss", f"{bgm_start:.2f}", "-t", f"{duration:.2f}", "-i", str(bgm_src),
+                    "-filter_complex",
+                    f"[0:a]aresample=48000,loudnorm=I=-14:TP=-1.5:LRA=7,apad=whole_dur={duration:.2f},atrim=0:{duration:.2f}[va];"
+                    f"[1:a]atrim=0:{duration:.2f},asetpts=PTS-STARTPTS,aresample=48000,loudnorm=I=-16:TP=-2:LRA=11,afade=t=in:st=0:d=0.6,afade=t=out:st={fade_out_st:.2f}:d=0.9,volume=0.18[ba];"
+                    f"[va][ba]amix=inputs=2:normalize=0:duration=first:dropout_transition=0,alimiter=limit=0.95[aout]",
+                    "-map", "[aout]", "-c:a", "aac", "-b:a", "192k", "-t", f"{duration:.2f}", str(mixed_audio),
+                ]
+                run(acmd)
+            else:
+                run([
+                    ffmpeg, "-y", "-v", "error", "-i", str(voice_mp3),
+                    "-af", f"aresample=48000,loudnorm=I=-14:TP=-1.5:LRA=7,apad=whole_dur={duration:.2f},atrim=0:{duration:.2f},alimiter=limit=0.95",
+                    "-c:a", "aac", "-b:a", "192k", "-t", f"{duration:.2f}", str(mixed_audio),
+                ])
+
             run([
-                ffmpeg, "-y", "-v", "error", "-i", str(voice_mp3),
-                "-af", f"aresample=48000,loudnorm=I=-14:TP=-1.5:LRA=7,apad=whole_dur={duration:.2f},atrim=0:{duration:.2f},alimiter=limit=0.95",
-                "-c:a", "aac", "-b:a", "192k", "-t", f"{duration:.2f}", str(mixed_audio),
+                ffmpeg, "-y", "-v", "error",
+                "-i", str(base_video),
+                "-f", "concat", "-safe", "0", "-i", str(ov_concat_txt),
+                "-i", str(mixed_audio),
+                "-filter_complex", f"[1:v]fps={FPS},format=rgba[ov];[0:v][ov]overlay=0:0:shortest=1,format=yuv420p[vout]",
+                "-map", "[vout]", "-map", "2:a:0",
+                "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+                "-c:a", "copy",
+                "-t", f"{duration:.2f}", "-movflags", "+faststart",
+                str(final_mp4),
             ])
 
-        run([
-            ffmpeg, "-y", "-v", "error",
-            "-i", str(base_video),
-            "-f", "concat", "-safe", "0", "-i", str(ov_concat_txt),
-            "-i", str(mixed_audio),
-            "-filter_complex", f"[1:v]fps={FPS},format=rgba[ov];[0:v][ov]overlay=0:0:shortest=1,format=yuv420p[vout]",
-            "-map", "[vout]", "-map", "2:a:0",
-            "-c:v", "libx264", "-preset", "fast", "-crf", "18",
-            "-c:a", "copy",
-            "-t", f"{duration:.2f}", "-movflags", "+faststart",
-            str(final_mp4),
-        ])
+        # 7) 全片校验 + 双封面 + 8 帧质检 + 记账
+        run([ffmpeg, "-v", "error", "-i", str(final_mp4), "-f", "null", "-"])
+        c916, c34, qc = export_covers_and_qc(ffmpeg, final_mp4, duration, out_dir)
+    except Exception as exc:
+        task_tracker.safe_finish_task(task_id, status="failed", error=str(exc))
+        raise
 
-    # 7) 全片校验 + 双封面 + 8 帧质检 + 记账
-    run([ffmpeg, "-v", "error", "-i", str(final_mp4), "-f", "null", "-"])
-    c916, c34, qc = export_covers_and_qc(ffmpeg, final_mp4, duration, out_dir)
     if bgm_src is not None:
         render_poster.save_ledger(ledger_path, ledger)
     record_used_footage(used_names, cfg)
+    task_tracker.safe_finish_task(
+        task_id,
+        status="done",
+        video=str(final_mp4),
+        cover_9x16=str(c916),
+        cover_3x4=str(c34),
+        duration_sec=duration,
+        bgm=bgm_label,
+    )
 
     hashtags = " ".join(job.get("hashtags", ["#旧衣回收", "#断舍离", "#亿德海"]))
     (out_dir / "发布文案.md").write_text(

@@ -25,6 +25,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import media_manager
+import task_tracker
 
 FFMPEG_BIN, FFPROBE_BIN = media_manager.resolve_ffmpeg_tools()
 
@@ -795,58 +796,79 @@ def main() -> None:
         out_dir = base_out
     out_dir.mkdir(parents=True, exist_ok=True)
     out_mp4 = media_manager.safe_child_path(out_dir, f"{slug}.mp4")
+    task_id = task_tracker.safe_start_task(
+        track="poster",
+        title=title.replace("\n", " "),
+        slug=slug,
+        out_dir=str(out_dir),
+        copy_text=str(job.get("publish_copy") or ""),
+    )
 
-    bgm_audio: Path | None = None
-    bgm_start = 0.0
-    bgm_label = "silent"
-    if not args.silent:
-        if args.bgm:
-            bgm_audio = Path(args.bgm)
-            bgm_label = bgm_audio.name
-        else:
-            bgm_dirs: list[Path] = []
-            if args.bgm_dir:
-                bgm_dirs.append(Path(args.bgm_dir))
+    try:
+        bgm_audio: Path | None = None
+        bgm_start = 0.0
+        bgm_label = "silent"
+        if not args.silent:
+            if args.bgm:
+                bgm_audio = Path(args.bgm)
+                bgm_label = bgm_audio.name
             else:
-                bgm_dirs.append(Path(cfg["cache_bgm_dir"]))
-                bgm_dirs.extend(Path(d) for d in cfg.get("local_bgm_dirs", []))
-            picked_bgm = pick_unique_bgm(bgm_dirs, duration, ledger)
-            if picked_bgm is None:
-                media_manager.ensure_online_media("bgm_tracks", count=2, cfg=cfg)
-                picked_bgm = pick_unique_bgm([Path(cfg["cache_bgm_dir"])], duration, ledger)
-            if picked_bgm is not None:
-                bgm_audio, bgm_start = picked_bgm
-                bgm_label = f"{bgm_audio.name}@{bgm_start:.1f}s"
+                bgm_dirs: list[Path] = []
+                if args.bgm_dir:
+                    bgm_dirs.append(Path(args.bgm_dir))
+                else:
+                    bgm_dirs.append(Path(cfg["cache_bgm_dir"]))
+                    bgm_dirs.extend(Path(d) for d in cfg.get("local_bgm_dirs", []))
+                picked_bgm = pick_unique_bgm(bgm_dirs, duration, ledger)
+                if picked_bgm is None:
+                    media_manager.ensure_online_media("bgm_tracks", count=2, cfg=cfg)
+                    picked_bgm = pick_unique_bgm([Path(cfg["cache_bgm_dir"])], duration, ledger)
+                if picked_bgm is not None:
+                    bgm_audio, bgm_start = picked_bgm
+                    bgm_label = f"{bgm_audio.name}@{bgm_start:.1f}s"
 
-    with tempfile.TemporaryDirectory() as tmp:
-        overlay_layers = build_overlay_layers(title, body_lines, question, pill, theme_key, Path(tmp))
-        seed = int(hashlib.sha256(f"{copy_hash}-{datetime.now().isoformat()}".encode()).hexdigest()[:8], 16)
-        if not args.silent and bgm_audio is None:
-            if args.ambient_fallback:
-                bgm_audio = Path(tmp) / "gentle-ambient.wav"
-                generate_gentle_ambient_wav(bgm_audio, duration, seed)
-                bgm_label = "builtin-ambient-chord"
-            else:
-                raise RuntimeError(
-                    "【硬拦截：缺少真实背景音乐源】当前未加 --silent，但本机无可用 BGM 且在线拉取失败，"
-                    "为避免产出无声残缺作品已阻止生成。请先配置以下任一音乐源后重试：\n"
-                    "  1) Jamendo 免费音乐 Client ID：python3 scripts/media_manager.py config --set-jamendo-id \"<CLIENT_ID>\"\n"
-                    "  2) 本地免版权纯音乐目录：python3 scripts/media_manager.py config --add-bgm-dir \"<本地BGM目录>\"\n"
-                    "  3) 若明确要导无声版供平台配乐，请显式传入 --silent。"
-                )
-        render_poster_video(
-            bg_video=bg_video,
-            bg_start=bg_start,
-            overlay_layers=overlay_layers,
-            out_mp4=out_mp4,
-            duration=duration,
-            bgm_audio=bgm_audio,
-            bgm_start=bgm_start,
-            bgm_volume=args.bgm_volume,
-            anti_dup_seed=seed,
-        )
+        with tempfile.TemporaryDirectory() as tmp:
+            overlay_layers = build_overlay_layers(title, body_lines, question, pill, theme_key, Path(tmp))
+            seed = int(hashlib.sha256(f"{copy_hash}-{datetime.now().isoformat()}".encode()).hexdigest()[:8], 16)
+            if not args.silent and bgm_audio is None:
+                if args.ambient_fallback:
+                    bgm_audio = Path(tmp) / "gentle-ambient.wav"
+                    generate_gentle_ambient_wav(bgm_audio, duration, seed)
+                    bgm_label = "builtin-ambient-chord"
+                else:
+                    raise RuntimeError(
+                        "【硬拦截：缺少真实背景音乐源】当前未加 --silent，但本机无可用 BGM 且在线拉取失败，"
+                        "为避免产出无声残缺作品已阻止生成。请先配置以下任一音乐源后重试：\n"
+                        "  1) Jamendo 免费音乐 Client ID：python3 scripts/media_manager.py config --set-jamendo-id \"<CLIENT_ID>\"\n"
+                        "  2) 本地免版权纯音乐目录：python3 scripts/media_manager.py config --add-bgm-dir \"<本地BGM目录>\"\n"
+                        "  3) 若明确要导无声版供平台配乐，请显式传入 --silent。"
+                    )
+            render_poster_video(
+                bg_video=bg_video,
+                bg_start=bg_start,
+                overlay_layers=overlay_layers,
+                out_mp4=out_mp4,
+                duration=duration,
+                bgm_audio=bgm_audio,
+                bgm_start=bgm_start,
+                bgm_volume=args.bgm_volume,
+                anti_dup_seed=seed,
+            )
 
-    cover_9x16, cover_3x4 = export_covers(out_mp4, out_dir)
+        cover_9x16, cover_3x4 = export_covers(out_mp4, out_dir)
+    except Exception as exc:
+        task_tracker.safe_finish_task(task_id, status="failed", error=str(exc))
+        raise
+
+    task_tracker.safe_finish_task(
+        task_id,
+        status="done",
+        video=str(out_mp4),
+        cover_9x16=str(cover_9x16),
+        cover_3x4=str(cover_3x4),
+        duration_sec=duration,
+        bgm=bgm_label,
+    )
 
     if copy_hash not in ledger.get("used_copies", []):
         ledger.setdefault("used_copies", []).append(copy_hash)

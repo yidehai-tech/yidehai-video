@@ -172,6 +172,7 @@ def main() -> None:
 
     pkg_job: dict[str, Any] = {
         "slug": slug,
+        "track": "storybook",
         "format_label": "图文故事片",
         "mode": "montage",
         "title": job.get("title", slug),

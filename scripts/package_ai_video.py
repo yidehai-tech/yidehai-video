@@ -45,6 +45,7 @@ from media_manager import (  # noqa: E402
     sanitize_slug,
 )
 import render_poster  # noqa: E402
+import task_tracker  # noqa: E402
 
 FORBIDDEN_TERMS = [
     "顺丰",
@@ -644,95 +645,131 @@ def main() -> None:
     else:
         out_dir = safe_child_path(out_root, slug)
     out_dir.mkdir(parents=True, exist_ok=True)
-
-    proj_dir = out_dir / "hf-project"
-    assets_dir = proj_dir / "assets"
-    assets_dir.mkdir(parents=True, exist_ok=True)
-
-    font_dst = assets_dir / f"font{font_path.suffix}"
-    shutil.copy2(font_path, font_dst)
-
     mode = job.get("mode", "native_audio")
     if mode not in ("native_audio", "montage"):
         raise ValueError(f"不支持的包装模式 mode={mode!r}（仅支持 'native_audio' 或 'montage'）。")
-    used_footage: list[str] = []
-    if mode == "montage":
-        duration, fps, footage_path, used_footage = prepare_montage_assets(ffmpeg, ffprobe, job, assets_dir)
-    else:
-        duration, fps, footage_path = prepare_native_audio_assets(ffmpeg, ffprobe, job, assets_dir)
 
-    index_html = build_hyperframes_html(job, duration, font_path.suffix)
-    (proj_dir / "index.html").write_text(index_html, encoding="utf-8")
+    raw_track = str(job.get("track") or "").strip().lower()
+    if raw_track not in task_tracker.TRACK_LABELS:
+        fl = str(job.get("format_label") or "")
+        if "图文" in fl:
+            raw_track = "storybook"
+        elif "即梦" in fl or "dreamina" in fl.lower():
+            raw_track = "dreamina"
+        elif "flow" in fl.lower():
+            raw_track = "flow"
+        elif mode == "montage":
+            raw_track = "montage"
+        else:
+            raw_track = "other"
 
-    # 1) HeyGen HyperFrames check & render
-    env = os.environ.copy()
-    env.setdefault("npm_config_registry", "https://registry.npmmirror.com")
-    chk = run(hf_cmd + ["check", "--json"], cwd=proj_dir, check=False, env=env)
-    if chk.returncode != 0:
-        raise RuntimeError(f"HeyGen HyperFrames 预检失败（exit={chk.returncode}）：\n{chk.stdout}\n{chk.stderr}")
-    final_mp4 = safe_child_path(out_dir, f"{slug}.mp4")
-    run(hf_cmd + ["render", "--quality", args.quality, "-o", str(final_mp4)], cwd=proj_dir, env=env)
+    task_id = task_tracker.safe_start_task(
+        track=raw_track,
+        title=str(job.get("title") or slug),
+        slug=slug,
+        out_dir=str(out_dir),
+        copy_text=str(job.get("copy") or ""),
+    )
 
-    # 1.5) 统一音频口径（v2.3.2）：默认叠加 12% 真实无版权 BGM（amix normalize=0 + alimiter）；
-    # 仅显式 --silent 或本机确无真实 BGM 时保留纯人声干声版，并写明原因。
-    bgm_label = "dry-voice-only"
-    audio_note = ""
-    want_silent = bool(args.silent or job.get("silent"))
-    if not want_silent:
-        cfg = load_config()
-        ledger_path = Path(cfg.get("ledger_path") or DEFAULT_LEDGER_PATH)
-        ledger = render_poster.load_ledger(ledger_path)
-        bgm_dirs = [Path(args.bgm_dir)] if args.bgm_dir else (
-            [Path(cfg["cache_bgm_dir"])] + [Path(d) for d in cfg.get("local_bgm_dirs", [])]
-        )
-        picked_bgm = render_poster.pick_unique_bgm(bgm_dirs, duration, ledger)
-        if picked_bgm is None:
-            ensure_online_media("bgm_tracks", count=2, cfg=cfg)
-            picked_bgm = render_poster.pick_unique_bgm([Path(cfg["cache_bgm_dir"])], duration, ledger)
-        if picked_bgm is not None:
-            bgm_src, bgm_start = picked_bgm
-            dry_backup = out_dir / f"{slug}-干声无BGM版.mp4"
-            shutil.copy2(final_mp4, dry_backup)
-            muxed_mp4 = out_dir / f"{slug}.muxed.mp4"
-            fade_out_st = max(0.0, duration - 0.9)
-            mux_proc = subprocess.run([
-                ffmpeg, "-y", "-v", "error",
-                "-i", str(final_mp4),
-                "-stream_loop", "-1", "-ss", f"{bgm_start:.2f}", "-t", f"{duration:.2f}", "-i", str(bgm_src),
-                "-filter_complex",
-                f"[0:a]aresample=48000,loudnorm=I=-14:TP=-1.5:LRA=7[v];"
-                f"[1:a]atrim=0:{duration:.2f},asetpts=PTS-STARTPTS,aresample=48000,loudnorm=I=-16:TP=-2:LRA=11,afade=t=in:st=0:d=0.6,afade=t=out:st={fade_out_st:.2f}:d=0.9,volume=0.18[b];"
-                f"[v][b]amix=inputs=2:normalize=0:duration=first:dropout_transition=0,alimiter=limit=0.95[a]",
-                "-map", "0:v:0", "-map", "[a]",
-                "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
-                "-t", f"{duration:.2f}", "-movflags", "+faststart",
-                str(muxed_mp4),
-            ], capture_output=True, text=True)
-            if mux_proc.returncode == 0 and muxed_mp4.exists():
-                muxed_mp4.replace(final_mp4)
-                render_poster.save_ledger(ledger_path, ledger)
-                bgm_label = f"{bgm_src.name}@{bgm_start:.1f}s(loudnorm+18%)"
+    try:
+        proj_dir = out_dir / "hf-project"
+        assets_dir = proj_dir / "assets"
+        assets_dir.mkdir(parents=True, exist_ok=True)
+
+        font_dst = assets_dir / f"font{font_path.suffix}"
+        shutil.copy2(font_path, font_dst)
+
+        used_footage: list[str] = []
+        if mode == "montage":
+            duration, fps, footage_path, used_footage = prepare_montage_assets(ffmpeg, ffprobe, job, assets_dir)
+        else:
+            duration, fps, footage_path = prepare_native_audio_assets(ffmpeg, ffprobe, job, assets_dir)
+
+        index_html = build_hyperframes_html(job, duration, font_path.suffix)
+        (proj_dir / "index.html").write_text(index_html, encoding="utf-8")
+
+        # 1) HeyGen HyperFrames check & render
+        env = os.environ.copy()
+        env.setdefault("npm_config_registry", "https://registry.npmmirror.com")
+        chk = run(hf_cmd + ["check", "--json"], cwd=proj_dir, check=False, env=env)
+        if chk.returncode != 0:
+            raise RuntimeError(f"HeyGen HyperFrames 预检失败（exit={chk.returncode}）：\n{chk.stdout}\n{chk.stderr}")
+        final_mp4 = safe_child_path(out_dir, f"{slug}.mp4")
+        run(hf_cmd + ["render", "--quality", args.quality, "-o", str(final_mp4)], cwd=proj_dir, env=env)
+
+        # 1.5) 统一音频口径（v2.3.2）：默认叠加 18% 归一化真实无版权 BGM（amix normalize=0 + alimiter）；
+        # 仅显式 --silent 或本机确无真实 BGM 时保留纯人声干声版，并写明原因。
+        bgm_label = "dry-voice-only"
+        audio_note = ""
+        want_silent = bool(args.silent or job.get("silent"))
+        if not want_silent:
+            cfg = load_config()
+            ledger_path = Path(cfg.get("ledger_path") or DEFAULT_LEDGER_PATH)
+            ledger = render_poster.load_ledger(ledger_path)
+            bgm_dirs = [Path(args.bgm_dir)] if args.bgm_dir else (
+                [Path(cfg["cache_bgm_dir"])] + [Path(d) for d in cfg.get("local_bgm_dirs", [])]
+            )
+            picked_bgm = render_poster.pick_unique_bgm(bgm_dirs, duration, ledger)
+            if picked_bgm is None:
+                ensure_online_media("bgm_tracks", count=2, cfg=cfg)
+                picked_bgm = render_poster.pick_unique_bgm([Path(cfg["cache_bgm_dir"])], duration, ledger)
+            if picked_bgm is not None:
+                bgm_src, bgm_start = picked_bgm
+                dry_backup = out_dir / f"{slug}-干声无BGM版.mp4"
+                shutil.copy2(final_mp4, dry_backup)
+                muxed_mp4 = out_dir / f"{slug}.muxed.mp4"
+                fade_out_st = max(0.0, duration - 0.9)
+                mux_proc = subprocess.run([
+                    ffmpeg, "-y", "-v", "error",
+                    "-i", str(final_mp4),
+                    "-stream_loop", "-1", "-ss", f"{bgm_start:.2f}", "-t", f"{duration:.2f}", "-i", str(bgm_src),
+                    "-filter_complex",
+                    f"[0:a]aresample=48000,loudnorm=I=-14:TP=-1.5:LRA=7[v];"
+                    f"[1:a]atrim=0:{duration:.2f},asetpts=PTS-STARTPTS,aresample=48000,loudnorm=I=-16:TP=-2:LRA=11,afade=t=in:st=0:d=0.6,afade=t=out:st={fade_out_st:.2f}:d=0.9,volume=0.18[b];"
+                    f"[v][b]amix=inputs=2:normalize=0:duration=first:dropout_transition=0,alimiter=limit=0.95[a]",
+                    "-map", "0:v:0", "-map", "[a]",
+                    "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+                    "-t", f"{duration:.2f}", "-movflags", "+faststart",
+                    str(muxed_mp4),
+                ], capture_output=True, text=True)
+                if mux_proc.returncode == 0 and muxed_mp4.exists():
+                    muxed_mp4.replace(final_mp4)
+                    render_poster.save_ledger(ledger_path, ledger)
+                    bgm_label = f"{bgm_src.name}@{bgm_start:.1f}s(loudnorm+18%)"
+                else:
+                    raise RuntimeError(
+                        f"【硬拦截：BGM 混音失败】为避免交付残缺无配乐成品已中止（ffmpeg exit={mux_proc.returncode}）：{mux_proc.stderr[-300:]}"
+                    )
             else:
                 raise RuntimeError(
-                    f"【硬拦截：BGM 混音失败】为避免交付残缺无配乐成品已中止（ffmpeg exit={mux_proc.returncode}）：{mux_proc.stderr[-300:]}"
+                    "【硬拦截：缺少真实背景音乐源】当前未开启 --silent，但本机无可用 BGM 且在线拉取失败，"
+                    "严禁跳过直接交付无配乐半成品。请先配置本地 BGM 目录（--add-bgm-dir）或 Jamendo Client ID（--set-jamendo-id），"
+                    "或仅在明确需要无声/纯干声版时显式传入 --silent。"
                 )
         else:
-            raise RuntimeError(
-                "【硬拦截：缺少真实背景音乐源】当前未开启 --silent，但本机无可用 BGM 且在线拉取失败，"
-                "严禁跳过直接交付无配乐半成品。请先配置本地 BGM 目录（--add-bgm-dir）或 Jamendo Client ID（--set-jamendo-id），"
-                "或仅在明确需要无声/纯干声版时显式传入 --silent。"
-            )
-    else:
-        bgm_label = "dry-voice-by-request"
-        audio_note = "按要求输出纯人声干声版（无 BGM），发布时可挂平台热门轻音乐。"
+            bgm_label = "dry-voice-by-request"
+            audio_note = "按要求输出纯人声干声版（无 BGM），发布时可挂平台热门轻音乐。"
 
-    # 2) 全片解码校验
-    run([ffmpeg, "-v", "error", "-i", str(final_mp4), "-f", "null", "-"])
+        # 2) 全片解码校验
+        run([ffmpeg, "-v", "error", "-i", str(final_mp4), "-f", "null", "-"])
 
-    # 3) 双封面 + 8 帧质检图
-    c916, c34 = generate_covers(ffmpeg, footage_path, out_dir, job.get("cover", {}), font_path)
-    qc_img = out_dir / "qc-contact.jpg"
-    generate_qc_contact(ffmpeg, final_mp4, duration, qc_img)
+        # 3) 双封面 + 8 帧质检图
+        c916, c34 = generate_covers(ffmpeg, footage_path, out_dir, job.get("cover", {}), font_path)
+        qc_img = out_dir / "qc-contact.jpg"
+        generate_qc_contact(ffmpeg, final_mp4, duration, qc_img)
+    except Exception as exc:
+        task_tracker.safe_finish_task(task_id, status="failed", error=str(exc))
+        raise
+
+    task_tracker.safe_finish_task(
+        task_id,
+        status="done",
+        video=str(final_mp4),
+        cover_9x16=str(c916),
+        cover_3x4=str(c34),
+        duration_sec=duration,
+        bgm=bgm_label,
+    )
 
     # 4) 发布文案与元数据
     hashtags = " ".join(job.get("hashtags", ["#旧衣回收", "#断舍离", "#亿德海"]))

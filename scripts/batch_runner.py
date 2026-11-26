@@ -26,6 +26,7 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 import media_manager
 import motion_templates
 import render_poster
+import task_tracker
 
 TYPE_ALIASES = {
     "大字报": "poster",
@@ -183,6 +184,16 @@ def run_one_item(
     style_idx = int(re.sub(r"\D", "", item_id) or "0")
     chosen_style = build_motion_html_project(item, proj_dir, idx=style_idx)
     if om_runtime is None:
+        note_msg = f"已按高转化母版 [{chosen_style}] 生成规范动效工程；本机 OpenMotion 导出组件就绪后重跑本命令即可自动续渲。"
+        task_tracker.safe_record_task(
+            track="motion",
+            title=str(item.get("title", "")).replace("\n", " "),
+            status="pending_render",
+            slug=str(item.get("slug", item_id)),
+            out_dir=str(item_dir),
+            note=note_msg,
+            copy_text=str(item.get("publish_copy") or ""),
+        )
         return {
             "id": item_id,
             "type": "motion",
@@ -191,8 +202,16 @@ def run_one_item(
             "title": item.get("title", ""),
             "status": "pending_motion_engine",
             "project_dir": str(proj_dir),
-            "note": f"已按高转化母版 [{chosen_style}] 生成规范动效工程；本机 OpenMotion 导出组件就绪后重跑本命令即可自动续渲。",
+            "note": note_msg,
         }
+
+    motion_task_id = task_tracker.safe_start_task(
+        track="motion",
+        title=str(item.get("title", "")).replace("\n", " "),
+        slug=str(item.get("slug", item_id)),
+        out_dir=str(item_dir),
+        copy_text=str(item.get("publish_copy") or ""),
+    )
 
     out_mp4 = item_dir / f"{item.get('slug', item_id)}.mp4"
     env = os.environ.copy()
@@ -204,7 +223,9 @@ def run_one_item(
     cmd = ["node", om_runtime["hf_bin"], "render", "-o", str(out_mp4), str(proj_dir)]
     proc = subprocess.run(cmd, env=env, capture_output=True, text=True)
     if proc.returncode != 0 or not out_mp4.exists():
-        return {"id": item_id, "type": "motion", "type_zh": TYPE_DISPLAY["motion"], "title": item.get("title", ""), "status": "failed", "error": (proc.stderr or proc.stdout).strip()[-400:]}
+        err_msg = (proc.stderr or proc.stdout).strip()[-400:]
+        task_tracker.safe_finish_task(motion_task_id, status="failed", error=err_msg)
+        return {"id": item_id, "type": "motion", "type_zh": TYPE_DISPLAY["motion"], "title": item.get("title", ""), "status": "failed", "error": err_msg}
 
     # 默认给动效片合成「中文 AI 旁白（Edge-TTS）+ 12% 真实无版权 BGM」有声版，并保留同配色无声版；
     # 仅成员明确要求 --silent 或确无真实音源时回落无声版，并在结果里写明原因。
@@ -360,6 +381,18 @@ def run_one_item(
     subprocess.run([om_runtime["ffmpeg_path"], "-y", "-v", "error", "-ss", "1.0", "-i", str(out_mp4), "-frames:v", "1", "-q:v", "2", str(cover_9x16)], check=False)
     if cover_9x16.exists():
         subprocess.run([om_runtime["ffmpeg_path"], "-y", "-v", "error", "-i", str(cover_9x16), "-vf", "crop=1080:1440:0:180", "-q:v", "2", str(cover_3x4)], check=False)
+
+    task_tracker.safe_finish_task(
+        motion_task_id,
+        status="done" if final_status in ("done", "degraded") else "failed",
+        video=str(out_mp4),
+        cover_9x16=str(cover_9x16) if cover_9x16.exists() else "",
+        cover_3x4=str(cover_3x4) if cover_3x4.exists() else "",
+        duration_sec=float(item.get("duration", 10.0)),
+        bgm=bgm_label,
+        note=(f"[degraded] {audio_note}" if final_status == "degraded" else audio_note),
+        error=(audio_note if final_status == "failed" else ""),
+    )
 
     return {
         "id": item_id,
