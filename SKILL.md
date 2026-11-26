@@ -4,7 +4,7 @@ description: >-
   亿德海（yidehai）团队短视频创作与批量出片 Skill（全面兼容市面上所有主流 AI Agent 工具：WorkBuddy、Claude Code、Codex、Cursor、Antigravity、OpenClaw 等桌面执行型 Agent，以及豆包、通义千问、Kimi、扣子等对话/知识库型 Agent）。
   统一 7 大中文视频形态：「大字报」、「动效片」、「实拍混剪」、「图文故事片」（短视频+小红书轮播一鱼两吃）、「即梦片」、「Flow片」、「口播包装」，支持单条精做与批量出片，具备按宿主能力自动分级适配（有终端自动渲染出片；纯对话宿主自动交付满血合规脚本 + 双封面字 + 可直接粘贴的即梦/Flow 防穿帮 Prompt）。
   当团队成员说“帮我做一条旧衣回收视频”、“做一条大字报/动效片/实拍混剪/图文故事片/即梦片/Flow片/口播包装”、“帮我批量生成 50/100 条视频”、“初始化/配置素材路径”、“更新视频助手”时，自动按本 Skill 执行。
-version: "2.7.1"
+version: "2.7.2"
 ---
 
 # 亿德海团队短视频创作与出片 Skill
@@ -44,7 +44,7 @@ version: "2.7.1"
 
 > **统一成片观感红线**：顺应原生 UGC 风格，`动效片`、`实拍混剪`、`即梦片`、`Flow片`、`口播包装` 均**不放底部品牌浮条、不做全屏静态尾卡**，话音或画面一落立刻利落收尾保完播。（注：`大字报` 属于单屏文字版式，其底部静态业务信息胶囊为版式组成部分，不在此限。）
 
-> **统一成片音频口径（全 skill 一致，最高优先级）**：默认成片必须带真实无版权 BGM——**有旁白轨道（`动效片`/`实拍混剪`/`图文故事片`/`即梦片`/`Flow片`）= 干声旁白 + 12% BGM**；**纯画面无旁白的 `大字报` = 65% 清晰轻音乐**。仅成员明确说「无声版 / 不要背景音乐」时才加 `--silent` 输出无声版。**缺少真实 BGM 源时硬拦截，严禁跳过直接产出无声残缺作品！** 详见 `knowledge/01-brand-rules.md` 第三节与 `knowledge/09-motion-batch-field-notes.md` 第三节。
+> **统一成片音频口径（全 skill 一致，最高优先级）**：默认成片必须带真实无版权 BGM 并启用广播级响度标准化（`loudnorm`）——**有旁白轨道（`动效片`/`实拍混剪`/`图文故事片`/`即梦片`/`Flow片`）= 人声归一化 `-14 LUFS` + BGM 归一化 `-16 LUFS` 后 `18%` 垫底**（保证手机外放人声清晰响亮、轻音乐稳定可闻且绝不盖人声）；**纯画面无旁白的 `大字报` = BGM 归一化 `-16 LUFS`（`0.85` 倍率）清晰输出**。仅成员明确说「无声版 / 不要背景音乐」时才加 `--silent` 输出无声版。**缺少真实 BGM 源时硬拦截，严禁跳过直接产出无声残缺作品！** 详见 `knowledge/01-brand-rules.md` 第三节与 `knowledge/09-motion-batch-field-notes.md` 第三节。
 
 ---
 
@@ -90,7 +90,7 @@ python3 scripts/media_manager.py preflight --track <poster|motion|montage|storyb
   - **`实拍混剪`（`montage`）必配**：① **本地业务实拍素材目录**；② 真实 BGM 源。
   - **`图文故事片`（`storybook`）必配**：① 确认分镜图源（若选免费图库 API 则必配 **Pexels / Pixabay Key**）；② 真实 BGM 源。
   - **`口播包装`（`motiongit`）必配**：① **本地 MotionGit 官方免费 `.motion` 模板目录**。
-  - 收到成员回复的 Key 或目录后，立刻调用 `media_manager.py config --set-pexels-key / --set-pixabay-key / --set-jamendo-id / --add-bg-dir / --add-bgm-dir / --add-footage-dir / --set-motion-templates-dir` 持久化写入，然后立刻恢复出片。（严禁擅自扫描系统个人 `Music` 或全盘硬盘。）
+  - 收到成员回复的 Key 或目录后，立刻调用 `media_manager.py config --set-pexels-key / --set-pixabay-key / --set-jamendo-id / --add-bg-dir / --add-bgm-dir / --add-footage-dir / --set-motion-templates-dir` 持久化写入，然后立刻恢复出片。（**目录隔离硬规**：`local_bg_dirs` **只放干净自然风景空镜**，客户衣物/打包实拍视频与照片只放 `local_footage_dirs`，严禁把实拍目录误塞进 `local_bg_dirs` 污染大字报底图；严禁擅自扫描系统个人 `Music` 或全盘硬盘。）
 
 ### Step 1：自动定题与写稿 + 合规双检
 1. 核对 `knowledge/02-business-faq.md` 与 `~/.yidehai-video/used_history.json`，未指定主题时按四维选题矩阵自动定题（仅成员主动要求“先给我几个选题挑挑”时才给 3 个切角）。

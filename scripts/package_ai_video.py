@@ -698,8 +698,8 @@ def main() -> None:
                 "-i", str(final_mp4),
                 "-stream_loop", "-1", "-ss", f"{bgm_start:.2f}", "-t", f"{duration:.2f}", "-i", str(bgm_src),
                 "-filter_complex",
-                f"[0:a]aresample=48000,volume=1.05[v];"
-                f"[1:a]aresample=48000,afade=t=in:st=0:d=0.6,afade=t=out:st={fade_out_st:.2f}:d=0.9,volume=0.12[b];"
+                f"[0:a]aresample=48000,loudnorm=I=-14:TP=-1.5:LRA=7[v];"
+                f"[1:a]aresample=48000,loudnorm=I=-16:TP=-2:LRA=11,afade=t=in:st=0:d=0.6,afade=t=out:st={fade_out_st:.2f}:d=0.9,volume=0.18[b];"
                 f"[v][b]amix=inputs=2:normalize=0:duration=first:dropout_transition=0,alimiter=limit=0.95[a]",
                 "-map", "0:v:0", "-map", "[a]",
                 "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
@@ -709,7 +709,7 @@ def main() -> None:
             if mux_proc.returncode == 0 and muxed_mp4.exists():
                 muxed_mp4.replace(final_mp4)
                 render_poster.save_ledger(ledger_path, ledger)
-                bgm_label = f"{bgm_src.name}@{bgm_start:.1f}s(12%)"
+                bgm_label = f"{bgm_src.name}@{bgm_start:.1f}s(loudnorm+18%)"
             else:
                 raise RuntimeError(
                     f"【硬拦截：BGM 混音失败】为避免交付残缺无配乐成品已中止（ffmpeg exit={mux_proc.returncode}）：{mux_proc.stderr[-300:]}"

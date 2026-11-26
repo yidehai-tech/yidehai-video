@@ -1,6 +1,6 @@
 # yidehai-video
 
-![Version](https://img.shields.io/badge/version-2.7.1-2B8A3E)
+![Version](https://img.shields.io/badge/version-2.7.2-2B8A3E)
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue)
 ![Standard](https://img.shields.io/badge/Agent%20Skills-SKILL.md-orange)
 

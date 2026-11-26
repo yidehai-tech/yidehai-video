@@ -165,8 +165,11 @@ def pick_unique_bg_segment(
     return None
 
 
+PUNCT_BREAK = set("，。！？；、：,.!?;:")
+
+
 def wrap_line(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTypeFont, max_width: int) -> list[str]:
-    """按像素宽度智能断行，避免单字孤行。"""
+    """按像素宽度智能断行：优先在中文标点处自然断句，避免劈断词组和产生 1-2 字孤行。"""
     text = text.strip()
     if not text:
         return []
@@ -174,25 +177,70 @@ def wrap_line(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTypeFont
     if (bbox[2] - bbox[0]) <= max_width:
         return [text]
 
-    lines = []
-    cur = ""
-    for ch in text:
-        test = cur + ch
-        tb = draw.textbbox((0, 0), test, font=font)
-        if (tb[2] - tb[0]) <= max_width or not cur:
-            cur = test
-        else:
-            lines.append(cur)
-            cur = ch
-    if cur:
-        lines.append(cur)
+    lines: list[str] = []
+    rem = text
+    while rem:
+        rb = draw.textbbox((0, 0), rem, font=font)
+        if (rb[2] - rb[0]) <= max_width:
+            lines.append(rem)
+            break
+        # 找到不超过 max_width 的最大截断下标
+        fit = 1
+        while fit < len(rem):
+            tb = draw.textbbox((0, 0), rem[: fit + 1], font=font)
+            if (tb[2] - tb[0]) <= max_width:
+                fit += 1
+            else:
+                break
+        # 若后半段（55%~100%）内有中文标点，优先在最靠后的标点处断句
+        split_at = fit
+        min_punct = max(2, int(fit * 0.55))
+        for idx in range(fit, min_punct - 1, -1):
+            if rem[idx - 1] in PUNCT_BREAK:
+                split_at = idx
+                break
+        lines.append(rem[:split_at].strip())
+        rem = rem[split_at:].strip()
 
-    # 避免最后一行只剩 1-2 个孤字
-    if len(lines) >= 2 and len(lines[-1]) <= 2 and len(lines[-2]) >= 5:
+    # 避免最后一行只剩 1-2 个孤字（仅在非标点结尾时均衡回借 2 字）
+    if len(lines) >= 2 and len(lines[-1]) <= 2 and len(lines[-2]) >= 5 and lines[-2][-1] not in PUNCT_BREAK:
         move = lines[-2][-2:]
         lines[-2] = lines[-2][:-2]
         lines[-1] = move + lines[-1]
-    return lines
+    return [ln for ln in lines if ln]
+
+
+def _normalize_body_paragraphs(body_lines: list[str]) -> list[list[str]]:
+    """严格保留传入的分行与空行分段，严禁将短行强行粘成一坨；对无空行长段按句号智能分成 2-3 段。"""
+    paragraphs: list[list[str]] = []
+    cur: list[str] = []
+    for raw in body_lines:
+        s = str(raw).strip()
+        if not s:
+            if cur:
+                paragraphs.append(cur)
+                cur = []
+        else:
+            cur.append(s)
+    if cur:
+        paragraphs.append(cur)
+
+    # 若整个正文只有 1 段且行数 >= 6（缺少段落呼吸感），按句末标点自动拆成 2-3 段
+    if len(paragraphs) == 1 and len(paragraphs[0]) >= 6:
+        lines = paragraphs[0]
+        split_groups: list[list[str]] = []
+        buf: list[str] = []
+        for idx, ln in enumerate(lines):
+            buf.append(ln)
+            remain = len(lines) - idx - 1
+            if len(buf) >= 2 and remain >= 2 and ln[-1] in "。！？":
+                split_groups.append(buf)
+                buf = []
+        if buf:
+            split_groups.append(buf)
+        if len(split_groups) >= 2:
+            return split_groups
+    return paragraphs
 
 
 def draw_outlined_centered_text(
@@ -275,33 +323,40 @@ def build_overlay_png(
     title_block_h = len(wrapped_title) * title_step
     divider_h = 40
 
-    # 将过短的零碎换行自动合并重排，避免中间空荡荡（保留显式大段感）
-    raw_body_text = "".join(body_lines) if all(len(l) <= 14 for l in body_lines) else "\n".join(body_lines)
+    # 严格保留分段与断句结构（彻底移除旧版强行 "".join 粘连成一整块的逻辑）
+    paragraphs = _normalize_body_paragraphs(body_lines)
 
     body_size = 76
     q_size = 54
     pill_size = 44
-    while body_size >= 56:
+    while body_size >= 52:
         body_font = load_font(font_path, font_idx, body_size)
         q_font = load_font(font_path, font_idx, q_size)
-        wrapped_body = []
-        for seg in raw_body_text.split("\n"):
-            wrapped_body.extend(wrap_line(draw, seg, body_font, max_body_w))
+        wrapped_paragraphs: list[list[str]] = []
+        for para in paragraphs:
+            p_lines: list[str] = []
+            for seg in para:
+                p_lines.extend(wrap_line(draw, seg, body_font, max_body_w))
+            if p_lines:
+                wrapped_paragraphs.append(p_lines)
         wrapped_q = []
         for seg in question.split("\n"):
             wrapped_q.extend(wrap_line(draw, seg, q_font, max_q_w))
         body_step = int(body_size * 1.24)
+        para_gap = int(body_size * 0.48)
         q_step = int(q_size * 1.26)
-        total_h = title_block_h + divider_h + len(wrapped_body) * body_step + (24 + len(wrapped_q) * q_step if wrapped_q else 0)
+        n_body_lines = sum(len(p) for p in wrapped_paragraphs)
+        n_para_gaps = max(0, len(wrapped_paragraphs) - 1)
+        body_block_h = n_body_lines * body_step + n_para_gaps * para_gap
+        total_h = title_block_h + divider_h + body_block_h + (28 + len(wrapped_q) * q_step if wrapped_q else 0)
         if total_h <= (safe_bottom - safe_top):
             break
         body_size -= 2
         q_size = max(46, int(body_size * 0.74))
 
     pill_font = load_font(font_path, font_idx, pill_size)
-    body_block_h = len(wrapped_body) * body_step
     q_block_h = len(wrapped_q) * q_step if wrapped_q else 0
-    content_h = title_block_h + divider_h + body_block_h + (24 + q_block_h if q_block_h else 0)
+    content_h = title_block_h + divider_h + body_block_h + (28 + q_block_h if q_block_h else 0)
     y = safe_top + max(0, (safe_bottom - safe_top - content_h) // 2)
 
     # ① 顶部大标题
@@ -319,10 +374,13 @@ def build_overlay_png(
     d.ellipse([(cx - 6, div_y - 6), (cx + 6, div_y + 6)], fill=theme["accent"])
     y += divider_h
 
-    # ② 中部正文
-    for line in wrapped_body:
-        draw_outlined_centered_text(img, y, line, body_font, theme["body"], theme["stroke"], stroke_width=7)
-        y += body_step
+    # ② 中部正文（保留自然段落呼吸留白）
+    for p_idx, p_lines in enumerate(wrapped_paragraphs):
+        for line in p_lines:
+            draw_outlined_centered_text(img, y, line, body_font, theme["body"], theme["stroke"], stroke_width=7)
+            y += body_step
+        if p_idx < len(wrapped_paragraphs) - 1:
+            y += para_gap
 
     # ③ 底部轻互动问句
     if wrapped_q:
@@ -499,7 +557,7 @@ def render_poster_video(
         cmd += [
             "-map", "2:a:0",
             "-c:a", "aac", "-b:a", "192k", "-ar", "44100", "-ac", "2",
-            "-af", f"volume={bgm_volume:.2f},afade=t=in:st=0:d=0.25,afade=t=out:st={max(0, duration-0.7):.2f}:d=0.7",
+            "-af", f"loudnorm=I=-16:TP=-1.5:LRA=11,volume={bgm_volume:.2f},afade=t=in:st=0:d=0.25,afade=t=out:st={max(0, duration-0.7):.2f}:d=0.7",
         ]
     else:
         cmd += ["-an"]
@@ -544,7 +602,7 @@ def main() -> None:
     parser.add_argument("--bg-source", choices=["both", "local", "online"], help="背景来源：both(本地+在线混合) / local / online")
     parser.add_argument("--bgm", help="指定背景音乐文件（支持 mp3/m4a/wav 或带音轨的 mp4）")
     parser.add_argument("--bgm-dir", help="BGM 素材池目录（不传则自动读取本机记忆目录 + 在线缓存）")
-    parser.add_argument("--bgm-volume", type=float, default=0.65, help="背景音乐音量倍率（大字报无旁白，默认 0.65 保证外放清晰；有旁白轨道另用 0.12）")
+    parser.add_argument("--bgm-volume", type=float, default=0.85, help="背景音乐归一化后的音量倍率（大字报无旁白，先 loudnorm 到 -16 LUFS 再乘 0.85 保证外放清晰；有旁白轨道另用 0.18）")
     parser.add_argument("--silent", action="store_true", help="显式导出无声版（不加任何背景音乐；未传此参数时缺音乐将硬拦截）")
     parser.add_argument("--allow-solid-fallback", action="store_true", help="仅限调试：允许无背景视频时回落纯色底（生产出片严禁开启）")
     parser.add_argument("--ambient-fallback", action="store_true", help="无真实 BGM 时使用内置合成和弦兜底（默认关闭，缺真实 BGM 时硬拦截）")
@@ -558,7 +616,10 @@ def main() -> None:
     job = json.loads(Path(args.job).read_text(encoding="utf-8"))
     title = job["title"].strip()
     body = job["body"]
-    body_lines = body if isinstance(body, list) else [l.strip() for l in body.splitlines() if l.strip()]
+    if isinstance(body, list):
+        body_lines = [str(l).strip() for l in body]
+    else:
+        body_lines = [l.strip() for l in str(body).splitlines()]
     question = job.get("question", "").strip()
     pill = job.get("pill", "亿德海 · 5公斤起专人免费上门").strip()
     hits = media_manager.check_forbidden_terms([title, "\n".join(body_lines), question, pill, str(job.get("publish_copy", ""))])

@@ -639,8 +639,8 @@ def main() -> None:
 
     p_cfg = sub.add_parser("config", help="查看或保存本机素材目录/偏好（写入 ~/.yidehai-video/config.json）")
     p_cfg.add_argument("--show", action="store_true", help="查看当前配置（不回显密钥明文）")
-    p_cfg.add_argument("--add-bg-dir", help="添加并记住本地风景空镜视频目录（供大字报使用）")
-    p_cfg.add_argument("--add-footage-dir", help="添加并记住本地业务实拍素材目录（视频+图片，供实拍混剪/省点混剪使用）")
+    p_cfg.add_argument("--add-bg-dir", help="添加本地【干净风景空镜】目录（仅大字报背景用，严禁把杂乱客户衣物实拍目录填进这里）")
+    p_cfg.add_argument("--add-footage-dir", help="添加本地【业务实拍素材】目录（衣物/打包视频与客户照片，专供实拍混剪/图文故事片/省点混剪防重使用）")
     p_cfg.add_argument("--add-bgm-dir", help="添加并记住本地免版权轻音乐目录")
     p_cfg.add_argument("--set-motion-templates-dir", help="设置本机 MotionGit 免费口播模板目录")
     p_cfg.add_argument("--bg-source", choices=["both", "local", "online"], help="背景来源策略：both(混合) / local / online")
