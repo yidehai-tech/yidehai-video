@@ -2,9 +2,9 @@
 name: yidehai-video
 description: >-
   亿德海（yidehai）团队短视频创作与批量出片 Skill（全面兼容市面上所有主流 AI Agent 工具：WorkBuddy、Claude Code、Codex、Cursor、Antigravity、OpenClaw 等桌面执行型 Agent，以及豆包、通义千问、Kimi、扣子等对话/知识库型 Agent）。
-  统一 7 大中文视频形态：「大字报」、「动效片」、「实拍混剪」、「图文故事片」（短视频+小红书轮播一鱼两吃）、「即梦片」、「Flow片」、「口播包装」，支持单条精做与批量出片，具备按宿主能力自动分级适配（有终端自动渲染出片；纯对话宿主自动交付满血合规脚本 + 双封面字 + 可直接粘贴的即梦/Flow 防穿帮 Prompt）。
-  当团队成员说“帮我做一条旧衣回收视频”、“做一条大字报/动效片/实拍混剪/图文故事片/即梦片/Flow片/口播包装”、“帮我批量生成 50/100 条视频”、“初始化/配置素材路径”、“更新视频助手”时，自动按本 Skill 执行。
-version: "2.7.2"
+  统一 9 大中文视频形态：「大字报」、「动效片」、「实拍混剪」、「实拍快剪」、「前后对比片」、「图文故事片」（短视频+小红书轮播一鱼两吃）、「即梦片」、「Flow片」、「口播包装」，支持单条精做与批量出片，具备按宿主能力自动分级适配（有终端自动渲染出片；纯对话宿主自动交付满血合规脚本 + 双封面字 + 可直接粘贴的即梦/Flow 防穿帮 Prompt）。
+  当团队成员说“帮我做一条旧衣回收视频”、“做一条大字报/动效片/实拍混剪/实拍快剪/前后对比片/图文故事片/即梦片/Flow片/口播包装”、“帮我批量生成 50/100 条视频”、“初始化/配置素材路径”、“更新视频助手”时，自动按本 Skill 执行。
+version: "2.8.0"
 ---
 
 # 亿德海团队短视频创作与出片 Skill
@@ -30,13 +30,15 @@ version: "2.7.2"
 
 ---
 
-## 〇、统一中文视频形态命名（7 大轨道 · 告别英文工具名）
+## 〇、统一中文视频形态命名（9 大轨道 · 告别英文工具名）
 
 | 中文名称（直接说中文即可） | 内部标识 | 成本与定位 | 是否有旁白 | 底层引擎 | 触发规则 |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`大字报`** | `poster` | **0 点** · 8.8 秒风景空镜 + 满屏大字，9 秒直出，高频日更主力 | ✕（纯画面 + 轻 BGM） | 内置 `scripts/render_poster.py`（离线零浏览器） | 默认免费主力 |
+| **`大字报`** | `poster` | **0 点** · 8.8 秒风景空镜 + 分段高亮/逐层浮现大字报，高频日更主力 | ✕（纯画面 + 清晰轻 BGM） | 内置 `scripts/render_poster.py`（离线零浏览器） | 默认免费主力 |
 | **`动效片`** | `motion` | **0 点** · 10 秒多屏动态卡片 + 图形动效，干货清单/卖点对比 | ✓ **AI 旁白**（默认有声版，非真人出镜） | OpenMotion 前台同步渲染 | 默认免费主力 |
-| **`实拍混剪`** | `montage` | **0 点** · 本地实拍视频/图片（全局防重）+ `Edge-TTS` 干声旁白 | ✓ | **HeyGen HyperFrames**（`scripts/package_ai_video.py`） | 默认免费可选（需已配实拍路径） |
+| **`实拍混剪`** | `montage` | **0 点** · 3 段本地实拍视频/图片（全局防重）+ `Edge-TTS` 干声旁白 | ✓ | **HeyGen HyperFrames**（`scripts/package_ai_video.py`） | 默认免费可选（需已配实拍路径） |
+| **`实拍快剪`** | `fastcut` | **0 点** · 6–8 个 1.2–2.0s 快切实拍短镜头（视频+照片推镜）+ 卡点字幕 | ✓ | 内置 `scripts/render_footage_video.py`（纯离线无需 Node） | 海量本地实拍库高完播日更主力 |
+| **`前后对比片`** | `before_after` | **0 点** · 上下分屏对比（清理前 vs 清空后徽章）+ 强共鸣口播 | ✓ | 内置 `scripts/render_footage_video.py`（纯离线无需 Node） | 断舍离/换季强冲击晒单主力 |
 | **`图文故事片`** | `storybook` | **按所选图源定（0 点或少量积分）** · 4–6 张分镜图推镜成片 + **同步出小红书 3:4 轮播套图**（一鱼两吃） | ✓ | `scripts/storybook_builder.py` + **HeyGen HyperFrames** | 成员说“做图文故事片 / 绘本视频 / 小红书图文+视频”时使用，**生图渠道由成员 4 选 1 确认** |
 | **`即梦片`** | `dreamina` | **扣即梦积分** · 支持「纯即梦全片」与「**省积分混剪**（即梦 5s 开场 + 本地实拍）」 | ✓ | `dreamina` CLI（`scripts/dreamina_runner.py`）+ **HeyGen HyperFrames** | **严格 Opt-in**（明确说“用即梦”） |
 | **`Flow片`** | `flow` | **扣 Google 点数** · 支持「Omni 1.2 口播（24–30点）」与「**省点混剪**（Veo 3.1 Lite 10点开场 + 本地实拍）」 | ✓ | **`ego-lite` 全自动**操控 Google Flow + **HeyGen HyperFrames** | **严格 Opt-in**（明确说“用 Flow”） |
@@ -63,6 +65,7 @@ version: "2.7.2"
 8. **AI 生视频与混剪/口播包装层**：`knowledge/08-ai-video-engines.md` — `即梦片`、`Flow片`（`ego-lite` 全自动 + 省点混剪轮换）、`实拍混剪` 与 `口播包装`（MotionGit 免费模板）完整操作手册。
 9. **动效片批量实战层**：`knowledge/09-motion-batch-field-notes.md` — 批量 ≥3 条的配色轮换硬规则、5 套已验证浅色主题、已验证 OpenMotion 底版复用、子合成 CSS 覆盖坑、中文旁白 + 真实 BGM 有声版参数与质检清单。**批量出 `动效片` 前必读**。
 10. **图文故事片一鱼两吃层**：`knowledge/10-storybook-workflow.md` — `图文故事片` 的生图渠道 4 选 1 确认机制（宿主内置生图 / 即梦 CLI / 免费 API / 本地图片）、画风统一防乱码 Prompt 与短视频 + 小红书 3:4 轮播套图一键生成。
+11. **本地实拍库高转化快剪/对比层**：`knowledge/11-local-footage-formats.md` — `实拍快剪`（6–8 镜头快切）与 `前后对比片`（上下分屏对比）的分桶抽素材方法、离线秒级渲染命令与合规规范。
 
 ---
 
@@ -96,17 +99,23 @@ python3 scripts/media_manager.py preflight --track <poster|motion|montage|storyb
 1. 核对 `knowledge/02-business-faq.md` 与 `~/.yidehai-video/used_history.json`，未指定主题时按四维选题矩阵自动定题（仅成员主动要求“先给我几个选题挑挑”时才给 3 个切角）。
 2. 按目标形态写稿并静默通过 2 项硬核自检（合规禁用词 0 命中 + 真实业务事实/开头 3 秒感觉词），同时产出双封面两行大字与 6 平台通用发布文案。
 
-### Step 2：按形态自动出片（7 条路径）
+### Step 2：按形态自动出片（9 条路径）
 
-- **路径 P：`大字报`（0 点 · 离线 9 秒直出）**
-  - `python3 scripts/render_poster.py --job job.json --out-dir outputs --organize-by-date`（默认已配真实无版权 BGM 12%；仅成员明确说「无声版」才加 `--silent`）。
+- **路径 P：`大字报`（0 点 · 离线直出 · 支持 `**关键词**` 主题色高亮与逐段轻浮现动效）**
+  - `python3 scripts/render_poster.py --job job.json --out-dir outputs --organize-by-date`（默认已配 `-16 LUFS` 清晰无版权 BGM；正文推荐 2–3 自然段空行分隔、每段 1–2 处 `**关键词**` 高亮；仅成员明确说「无声版」才加 `--silent`）。
 - **路径 A：`动效片`（0 点 · OpenMotion）**
   - 按 `00-auto-setup.md` 与 `06-rendering-playbook.md` 确认 OpenMotion 就绪；**批量出片前必读 `09-motion-batch-field-notes.md`**，优先复用其中已验证的 3 套底版 + 5 套浅色主题轮换，lint 0 报错后前台同步渲染，**无品牌浮条、无静态尾卡**。
-  - **默认出有声版**：中文口播旁白（Edge-TTS `zh-CN-XiaoxiaoNeural`，40–55 字）+ 真实无版权 BGM 12%，同时保留同配色无声版供平台挂载热门音乐；合成参数见 `09-motion-batch-field-notes.md` 第三节。
-- **路径 M：`实拍混剪`（0 点 · 本地实拍 + Edge-TTS + HeyGen HyperFrames）**
+  - **默认出有声版**：中文口播旁白（`-14 LUFS`）+ 真实无版权 BGM（`-16 LUFS × 18%`），同时保留同配色无声版供平台挂载热门音乐。
+- **路径 M：`实拍混剪`（0 点 · 3 段本地实拍 + Edge-TTS + HeyGen HyperFrames）**
   - 自动检测/安装 `heygen-com/hyperframes` 与 `edge-tts`；
   - 调用 `python3 scripts/media_manager.py footage --count 3` 抽取 3 个未用过的本地实拍视频/图片；
   - 运行 `python3 scripts/package_ai_video.py --job job.json --out-dir outputs --organize-by-date` 一键完成配音、拼接、HyperFrames 渲染、8 帧质检图、双封面与全局防重记账。
+- **路径 FC：`实拍快剪`（0 点 · 6–8 镜头快切 · 纯离线零浏览器）**
+  - 按 `knowledge/11-local-footage-formats.md`，用 `media_manager.py footage --include-keyword ...` 按「痛点 → 过程 → 成品袋」分桶抽 6–8 个未用素材；
+  - 运行 `python3 scripts/render_footage_video.py --mode fastcut --job fastcut_job.json --out-dir outputs --organize-by-date` 秒级产出 1080×1920 快剪成片 + 双封面 + 8 帧质检图。
+- **路径 BA：`前后对比片`（0 点 · 上下分屏对比 · 纯离线零浏览器）**
+  - 按 `knowledge/11-local-footage-formats.md`，分别抽取 1 个「清理前杂乱衣柜」与 1 个「清空后打包袋」素材；
+  - 运行 `python3 scripts/render_footage_video.py --mode before_after --job before_after_job.json --out-dir outputs --organize-by-date` 一键生成上下分屏对比成片 + 状态徽章 + 双封面 + 8 帧质检图。
 - **路径 S：`图文故事片`（一鱼两吃 · 短视频 + 小红书 3:4 轮播套图）**
   - 严格按 `knowledge/10-storybook-workflow.md` 执行：先确认成员选择的分镜图渠道（① 当前 Agent 内置生图工具 / ② 即梦 CLI `dreamina text2image` / ③ 免费图库 API `media_manager.py fetch --kind stock_images` / ④ 本地图片目录），按统一画风+禁字铁律备齐 4–6 张图后，一键运行 `python3 scripts/storybook_builder.py --job storybook_job.json --out-dir outputs --organize-by-date` 同步产出成片视频与 `xhs-carousel/` 轮播套图。
 - **路径 D：`即梦片`（Opt-in 扣即梦积分 · `dreamina` CLI + HeyGen HyperFrames）**

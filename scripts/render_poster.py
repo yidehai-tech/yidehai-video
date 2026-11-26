@@ -168,46 +168,99 @@ def pick_unique_bg_segment(
 PUNCT_BREAK = set("，。！？；、：,.!?;:")
 
 
+def _parse_rich_segments(text: str) -> list[tuple[str, bool]]:
+    """解析正文里的 **关键词** 强调语法，返回 [(片段文本, 是否高亮), ...]。"""
+    parts: list[tuple[str, bool]] = []
+    pos = 0
+    while pos < len(text):
+        start = text.find("**", pos)
+        if start == -1:
+            if text[pos:]:
+                parts.append((text[pos:], False))
+            break
+        end = text.find("**", start + 2)
+        if end == -1:
+            parts.append((text[pos:], False))
+            break
+        if start > pos:
+            parts.append((text[pos:start], False))
+        inner = text[start + 2 : end]
+        if inner:
+            parts.append((inner, True))
+        pos = end + 2
+    return parts or [(text, False)]
+
+
+def _strip_emphasis(text: str) -> str:
+    return text.replace("**", "")
+
+
 def wrap_line(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTypeFont, max_width: int) -> list[str]:
-    """按像素宽度智能断行：优先在中文标点处自然断句，避免劈断词组和产生 1-2 字孤行。"""
+    """按像素宽度智能断行：优先在中文标点处自然断句，支持保留 **关键词** 高亮标记，避免劈断词组和孤行。"""
     text = text.strip()
     if not text:
         return []
-    bbox = draw.textbbox((0, 0), text, font=font)
+    plain = _strip_emphasis(text)
+    bbox = draw.textbbox((0, 0), plain, font=font)
     if (bbox[2] - bbox[0]) <= max_width:
         return [text]
 
-    lines: list[str] = []
-    rem = text
+    # 逐字符携带高亮标记，避免断行时丢失 **...** 语义
+    tagged_chars: list[tuple[str, bool]] = []
+    for seg_txt, is_hi in _parse_rich_segments(text):
+        for ch in seg_txt:
+            tagged_chars.append((ch, is_hi))
+
+    def _rebuild(chunk: list[tuple[str, bool]]) -> str:
+        out: list[str] = []
+        i = 0
+        while i < len(chunk):
+            flag = chunk[i][1]
+            j = i
+            while j < len(chunk) and chunk[j][1] == flag:
+                j += 1
+            s = "".join(c for c, _ in chunk[i:j])
+            out.append(f"**{s}**" if flag else s)
+            i = j
+        return "".join(out).strip()
+
+    lines_chunks: list[list[tuple[str, bool]]] = []
+    rem = tagged_chars
     while rem:
-        rb = draw.textbbox((0, 0), rem, font=font)
+        rem_plain = "".join(c for c, _ in rem)
+        rb = draw.textbbox((0, 0), rem_plain, font=font)
         if (rb[2] - rb[0]) <= max_width:
-            lines.append(rem)
+            lines_chunks.append(rem)
             break
-        # 找到不超过 max_width 的最大截断下标
         fit = 1
         while fit < len(rem):
-            tb = draw.textbbox((0, 0), rem[: fit + 1], font=font)
+            tb = draw.textbbox((0, 0), rem_plain[: fit + 1], font=font)
             if (tb[2] - tb[0]) <= max_width:
                 fit += 1
             else:
                 break
-        # 若后半段（55%~100%）内有中文标点，优先在最靠后的标点处断句
         split_at = fit
         min_punct = max(2, int(fit * 0.55))
         for idx in range(fit, min_punct - 1, -1):
-            if rem[idx - 1] in PUNCT_BREAK:
+            if rem_plain[idx - 1] in PUNCT_BREAK:
                 split_at = idx
                 break
-        lines.append(rem[:split_at].strip())
-        rem = rem[split_at:].strip()
+        lines_chunks.append(rem[:split_at])
+        rem = rem[split_at:]
+        while rem and rem[0][0].isspace():
+            rem = rem[1:]
 
     # 避免最后一行只剩 1-2 个孤字（仅在非标点结尾时均衡回借 2 字）
-    if len(lines) >= 2 and len(lines[-1]) <= 2 and len(lines[-2]) >= 5 and lines[-2][-1] not in PUNCT_BREAK:
-        move = lines[-2][-2:]
-        lines[-2] = lines[-2][:-2]
-        lines[-1] = move + lines[-1]
-    return [ln for ln in lines if ln]
+    if (
+        len(lines_chunks) >= 2
+        and len(lines_chunks[-1]) <= 2
+        and len(lines_chunks[-2]) >= 5
+        and lines_chunks[-2][-1][0] not in PUNCT_BREAK
+    ):
+        move = lines_chunks[-2][-2:]
+        lines_chunks[-2] = lines_chunks[-2][:-2]
+        lines_chunks[-1] = move + lines_chunks[-1]
+    return [_rebuild(ch) for ch in lines_chunks if ch]
 
 
 def _normalize_body_paragraphs(body_lines: list[str]) -> list[list[str]]:
@@ -251,69 +304,87 @@ def draw_outlined_centered_text(
     fill: tuple[int, int, int, int],
     stroke_fill: tuple[int, int, int, int],
     stroke_width: int,
+    accent_fill: tuple[int, int, int, int] | None = None,
 ) -> int:
     draw = ImageDraw.Draw(img)
-    bbox = draw.textbbox((0, 0), text, font=font, stroke_width=stroke_width)
+    segments = _parse_rich_segments(text)
+    plain = "".join(seg for seg, _ in segments)
+    bbox = draw.textbbox((0, 0), plain, font=font, stroke_width=stroke_width)
     tw = bbox[2] - bbox[0]
     th = bbox[3] - bbox[1]
-    x = (WIDTH - tw) // 2 - bbox[0]
+    x_start = (WIDTH - tw) // 2 - bbox[0]
 
     # 柔和阴影增强高对比度
     shadow = Image.new("RGBA", img.size, (0, 0, 0, 0))
     sdraw = ImageDraw.Draw(shadow)
     sdraw.text(
-        (x, y + 5), text, font=font,
+        (x_start, y + 5), plain, font=font,
         fill=(0, 0, 0, 155), stroke_width=stroke_width + 2, stroke_fill=(0, 0, 0, 155),
     )
     shadow = shadow.filter(ImageFilter.GaussianBlur(radius=4))
     img.alpha_composite(shadow)
 
     draw = ImageDraw.Draw(img)
-    draw.text(
-        (x, y), text, font=font,
-        fill=fill, stroke_width=stroke_width, stroke_fill=stroke_fill,
-    )
+    if accent_fill is None or not any(is_hi for _, is_hi in segments):
+        draw.text(
+            (x_start, y), plain, font=font,
+            fill=fill, stroke_width=stroke_width, stroke_fill=stroke_fill,
+        )
+        return th
+
+    cur_x = x_start
+    for seg_txt, is_hi in segments:
+        seg_fill = accent_fill if is_hi else fill
+        seg_sw = stroke_width + (1 if is_hi else 0)
+        draw.text(
+            (cur_x, y), seg_txt, font=font,
+            fill=seg_fill, stroke_width=seg_sw, stroke_fill=stroke_fill,
+        )
+        adv = draw.textlength(seg_txt, font=font)
+        cur_x += int(round(adv))
     return th
 
 
-def build_overlay_png(
+def build_overlay_layers(
     title: str,
     body_lines: list[str],
     question: str,
     pill: str,
     theme_key: str,
-    out_png: Path,
-) -> None:
+    out_dir: Path,
+) -> list[tuple[Path, float, float]]:
+    """生成分段逐层轻浮现的多图层透明 PNG，返回 [(png_path, start_sec, fade_sec), ...]。
+    - 图层 0（暗角 + 标题 + 分隔线）：0.0s 立即呈现，保黄金 1 秒；
+    - 图层 1..K（每个正文自然段）：依次在 0.22s / 0.56s / 0.90s 柔和浮现，支持 **关键词** 主题色高亮；
+    - 末层（底部问句 + 圆角胶囊）：紧随正文在 1.25s 内柔和浮现，全屏齐亮保完播。
+    """
     theme = THEMES[theme_key]
     font_path, font_idx = find_chinese_bold_font()
 
-    img = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 0))
+    title_layer = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 0))
     # 轻微全局压暗 + 上下轻渐变暗角，保证任何亮色风景空镜下文字都清晰锐利
     vignette = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 0))
     vdraw = ImageDraw.Draw(vignette)
     for row in range(HEIGHT):
-        # 顶部和中部柔和压暗，底部稍深护住胶囊条
         t = row / HEIGHT
         alpha = int(52 + 34 * math.sin(math.pi * t) + (36 if t > 0.78 else 0))
         vdraw.line([(0, row), (WIDTH, row)], fill=(8, 12, 16, min(alpha, 130)))
-    img.alpha_composite(vignette)
+    title_layer.alpha_composite(vignette)
 
-    draw = ImageDraw.Draw(img)
+    draw = ImageDraw.Draw(title_layer)
 
     title_segs = [s.strip() for s in title.split("\n") if s.strip()]
-    max_title_w = WIDTH - 64   # 左右各留 32px 紧凑边距，铺满屏幕
+    max_title_w = WIDTH - 64
     title_size = 114
     title_font = load_font(font_path, font_idx, title_size)
     while title_size > 72:
         title_font = load_font(font_path, font_idx, title_size)
-        if all((draw.textbbox((0, 0), s, font=title_font)[2] - draw.textbbox((0, 0), s, font=title_font)[0]) <= max_title_w for s in title_segs):
+        if all((draw.textbbox((0, 0), _strip_emphasis(s), font=title_font)[2] - draw.textbbox((0, 0), _strip_emphasis(s), font=title_font)[0]) <= max_title_w for s in title_segs):
             break
         title_size -= 2
 
-    max_body_w = WIDTH - 72    # 左右各留 36px 边距，让大字铺满屏幕
+    max_body_w = WIDTH - 72
     max_q_w = WIDTH - 72
-
-    # 自动最大化正文字号：在安全区高度内尽可能把字放最大（64px ~ 76px）
     safe_top = 95
     safe_bottom = 1605
     title_step = int(title_size * 1.16)
@@ -323,7 +394,6 @@ def build_overlay_png(
     title_block_h = len(wrapped_title) * title_step
     divider_h = 40
 
-    # 严格保留分段与断句结构（彻底移除旧版强行 "".join 粘连成一整块的逻辑）
     paragraphs = _normalize_body_paragraphs(body_lines)
 
     body_size = 76
@@ -359,58 +429,93 @@ def build_overlay_png(
     content_h = title_block_h + divider_h + body_block_h + (28 + q_block_h if q_block_h else 0)
     y = safe_top + max(0, (safe_bottom - safe_top - content_h) // 2)
 
-    # ① 顶部大标题
+    # ① 顶部大标题 + 细横线圆点分隔符（图层 0：0.0s 立即呈现）
     for line in wrapped_title:
-        draw_outlined_centered_text(img, y, line, title_font, theme["accent"], theme["stroke"], stroke_width=8)
+        draw_outlined_centered_text(title_layer, y, line, title_font, theme["accent"], theme["stroke"], stroke_width=8)
         y += title_step
 
-    # 细横线 + 中间圆点分隔符（1:1 复刻实发版式）
     div_y = y + 10
     line_half = 230
     cx = WIDTH // 2
-    d = ImageDraw.Draw(img)
+    d = ImageDraw.Draw(title_layer)
     d.line([(cx - line_half, div_y), (cx - 18, div_y)], fill=theme["accent"], width=3)
     d.line([(cx + 18, div_y), (cx + line_half, div_y)], fill=theme["accent"], width=3)
     d.ellipse([(cx - 6, div_y - 6), (cx + 6, div_y + 6)], fill=theme["accent"])
     y += divider_h
 
-    # ② 中部正文（保留自然段落呼吸留白）
+    layers: list[tuple[Path, float, float]] = []
+    title_png = out_dir / "layer_00_title.png"
+    title_layer.save(title_png, "PNG")
+    layers.append((title_png, 0.0, 0.16))
+
+    # ② 中部正文：每段独立透明图层，逐段柔和淡入 + **关键词** 主题色高亮
     for p_idx, p_lines in enumerate(wrapped_paragraphs):
+        p_img = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 0))
         for line in p_lines:
-            draw_outlined_centered_text(img, y, line, body_font, theme["body"], theme["stroke"], stroke_width=7)
+            draw_outlined_centered_text(
+                p_img, y, line, body_font,
+                theme["body"], theme["stroke"], stroke_width=7,
+                accent_fill=theme["accent"],
+            )
             y += body_step
         if p_idx < len(wrapped_paragraphs) - 1:
             y += para_gap
+        p_png = out_dir / f"layer_{p_idx + 1:02d}_para.png"
+        p_img.save(p_png, "PNG")
+        st = round(0.22 + p_idx * 0.32, 2)
+        layers.append((p_png, min(st, 1.05), 0.26))
 
-    # ③ 底部轻互动问句
-    if wrapped_q:
-        y += 22
-        for line in wrapped_q:
-            draw_outlined_centered_text(img, y, line, q_font, theme["accent"], theme["stroke"], stroke_width=6)
-            y += q_step
+    # ③ 底部轻互动问句 + ④ 底部半透明圆角胶囊条（末层柔和浮现）
+    if wrapped_q or pill.strip():
+        footer_img = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 0))
+        if wrapped_q:
+            y += 22
+            for line in wrapped_q:
+                draw_outlined_centered_text(footer_img, y, line, q_font, theme["accent"], theme["stroke"], stroke_width=6)
+                y += q_step
+        if pill.strip():
+            fd = ImageDraw.Draw(footer_img)
+            pb = fd.textbbox((0, 0), pill, font=pill_font)
+            pw = pb[2] - pb[0]
+            ph = pb[3] - pb[1]
+            pad_x, pad_y = 52, 22
+            box_w = pw + pad_x * 2
+            box_h = ph + pad_y * 2
+            pill_y = max(y + 32, 1650)
+            pill_y = min(pill_y, 1710)
+            x0 = (WIDTH - box_w) // 2
+            y0 = pill_y
+            fd.rounded_rectangle(
+                [(x0, y0), (x0 + box_w, y0 + box_h)],
+                radius=box_h // 2,
+                fill=theme["pill_bg"],
+            )
+            tx = x0 + pad_x - pb[0]
+            ty = y0 + pad_y - pb[1]
+            fd.text((tx, ty), pill, font=pill_font, fill=theme["pill_text"])
+        footer_png = out_dir / "layer_99_footer.png"
+        footer_img.save(footer_png, "PNG")
+        footer_st = round(min(1.20, 0.28 + len(wrapped_paragraphs) * 0.30), 2)
+        layers.append((footer_png, footer_st, 0.28))
 
-    # ④ 底部半透明圆角胶囊条（固定位于 y=1650 附近，避开抖音底部文案栏）
-    if pill.strip():
-        pb = d.textbbox((0, 0), pill, font=pill_font)
-        pw = pb[2] - pb[0]
-        ph = pb[3] - pb[1]
-        pad_x, pad_y = 52, 22
-        box_w = pw + pad_x * 2
-        box_h = ph + pad_y * 2
-        pill_y = max(y + 32, 1650)
-        pill_y = min(pill_y, 1710)
-        x0 = (WIDTH - box_w) // 2
-        y0 = pill_y
-        d.rounded_rectangle(
-            [(x0, y0), (x0 + box_w, y0 + box_h)],
-            radius=box_h // 2,
-            fill=theme["pill_bg"],
-        )
-        tx = x0 + pad_x - pb[0]
-        ty = y0 + pad_y - pb[1]
-        d.text((tx, ty), pill, font=pill_font, fill=theme["pill_text"])
+    return layers
 
-    img.save(out_png, "PNG")
+
+def build_overlay_png(
+    title: str,
+    body_lines: list[str],
+    question: str,
+    pill: str,
+    theme_key: str,
+    out_png: Path,
+) -> None:
+    """兼容旧调用：将多层透明文字合成为单张完整叠加 PNG。"""
+    with tempfile.TemporaryDirectory() as td:
+        layers = build_overlay_layers(title, body_lines, question, pill, theme_key, Path(td))
+        merged = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 0))
+        for p, _, _ in layers:
+            merged.alpha_composite(Image.open(p).convert("RGBA"))
+        merged.save(out_png, "PNG")
 
 
 def pick_unique_bgm(bgm_dirs: list[Path], duration: float, ledger: dict) -> tuple[Path, float] | None:
@@ -500,7 +605,7 @@ def generate_gentle_ambient_wav(out_wav: Path, duration: float, seed: int) -> No
 def render_poster_video(
     bg_video: Path | None,
     bg_start: float,
-    overlay_png: Path,
+    overlay_layers: list[tuple[Path, float, float]],
     out_mp4: Path,
     duration: float,
     bgm_audio: Path | None,
@@ -534,30 +639,39 @@ def render_poster_video(
         vf_parts.append("fps=30,format=rgba")
         bg_chain = ",".join(vf_parts)
     else:
-        # 兜底：无外部背景视频时生成缓慢流动的治愈森林绿渐变背景
         cmd += [
             "-f", "lavfi",
             "-i", f"color=c=#142B24:s={WIDTH}x{HEIGHT}:r=30:d={duration:.2f}",
         ]
         bg_chain = "format=rgba"
 
-    cmd += ["-loop", "1", "-t", f"{duration:.2f}", "-i", str(overlay_png)]
+    for layer_png, _, _ in overlay_layers:
+        cmd += ["-loop", "1", "-t", f"{duration:.2f}", "-i", str(layer_png)]
 
+    audio_input_idx = 1 + len(overlay_layers)
     if bgm_audio is not None:
         cmd += ["-stream_loop", "-1", "-ss", f"{bgm_start:.2f}", "-i", str(bgm_audio)]
 
-    filter_complex = (
-        f"[0:v]{bg_chain}[bg];"
-        f"[1:v]format=rgba,fade=t=in:st=0:d=0.18:alpha=1[ov];"
-        f"[bg][ov]overlay=0:0:shortest=1,format=yuv420p[vout]"
-    )
+    fc_parts = [f"[0:v]{bg_chain}[v0]"]
+    prev = "v0"
+    for idx, (_, st, fd) in enumerate(overlay_layers, start=1):
+        ov_tag = f"ov{idx}"
+        out_tag = f"v{idx}"
+        # 逐层淡入：st 之前全透明，st~st+fd 柔和浮现，之后稳定常亮
+        fc_parts.append(
+            f"[{idx}:v]format=rgba,fade=t=in:st={st:.2f}:d={fd:.2f}:alpha=1[{ov_tag}]"
+        )
+        fc_parts.append(f"[{prev}][{ov_tag}]overlay=0:0:shortest=1[{out_tag}]")
+        prev = out_tag
+    fc_parts.append(f"[{prev}]format=yuv420p[vout]")
+    filter_complex = ";".join(fc_parts)
     cmd += ["-filter_complex", filter_complex, "-map", "[vout]"]
 
     if bgm_audio is not None:
         cmd += [
-            "-map", "2:a:0",
+            "-map", f"{audio_input_idx}:a:0",
             "-c:a", "aac", "-b:a", "192k", "-ar", "44100", "-ac", "2",
-            "-af", f"loudnorm=I=-16:TP=-1.5:LRA=11,volume={bgm_volume:.2f},afade=t=in:st=0:d=0.25,afade=t=out:st={max(0, duration-0.7):.2f}:d=0.7",
+            "-af", f"atrim=0:{duration:.2f},asetpts=PTS-STARTPTS,loudnorm=I=-16:TP=-1.5:LRA=11,volume={bgm_volume:.2f},afade=t=in:st=0:d=0.25,afade=t=out:st={max(0, duration-0.7):.2f}:d=0.7",
         ]
     else:
         cmd += ["-an"]
@@ -578,7 +692,7 @@ def export_covers(mp4_path: Path, out_dir: Path) -> tuple[Path, Path]:
     cover_3x4 = out_dir / "cover-3x4.jpg"
     subprocess.check_call([
         FFMPEG_BIN, "-y", "-v", "error",
-        "-ss", "1.5", "-i", str(mp4_path),
+        "-ss", "2.2", "-i", str(mp4_path),
         "-frames:v", "1", "-q:v", "2",
         str(cover_9x16),
     ])
@@ -705,8 +819,7 @@ def main() -> None:
                 bgm_label = f"{bgm_audio.name}@{bgm_start:.1f}s"
 
     with tempfile.TemporaryDirectory() as tmp:
-        overlay_png = Path(tmp) / "overlay.png"
-        build_overlay_png(title, body_lines, question, pill, theme_key, overlay_png)
+        overlay_layers = build_overlay_layers(title, body_lines, question, pill, theme_key, Path(tmp))
         seed = int(hashlib.sha256(f"{copy_hash}-{datetime.now().isoformat()}".encode()).hexdigest()[:8], 16)
         if not args.silent and bgm_audio is None:
             if args.ambient_fallback:
@@ -724,7 +837,7 @@ def main() -> None:
         render_poster_video(
             bg_video=bg_video,
             bg_start=bg_start,
-            overlay_png=overlay_png,
+            overlay_layers=overlay_layers,
             out_mp4=out_mp4,
             duration=duration,
             bgm_audio=bgm_audio,

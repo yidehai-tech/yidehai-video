@@ -1,6 +1,6 @@
 # yidehai-video
 
-![Version](https://img.shields.io/badge/version-2.7.2-2B8A3E)
+![Version](https://img.shields.io/badge/version-2.8.0-2B8A3E)
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue)
 ![Standard](https://img.shields.io/badge/Agent%20Skills-SKILL.md-orange)
 
@@ -11,7 +11,7 @@
 
 ## 核心特性
 
-- **7 大生产轨道统一调度**：覆盖 0 成本高频日更（`大字报` / `动效片` / `实拍混剪` / `口播包装`）、一鱼两吃（`图文故事片`）与付费高拟真 AI 视频（`即梦片` / `Flow片`）。
+- **9 大生产轨道统一调度**：覆盖 0 成本高频日更（`大字报` / `动效片` / `实拍混剪` / `实拍快剪` / `前后对比片` / `口播包装`）、一鱼两吃（`图文故事片`）与付费高拟真 AI 视频（`即梦片` / `Flow片`）。
 - **全平台 Agent 自动分级适配**：自动识别运行环境（L1 桌面执行型 / L2 轻沙箱型 / L3 纯对话知识库型），在任意工具中开箱即用。
 - **积分与费用自主选择护栏**：默认仅使用 0 积分免费轨道；调用宿主内置生图、即梦 CLI 或 Google Flow 前均要求显式选择与确认，并具备提交前原子落盘防重复扣分机制。
 - **统一成片质量标准**：默认「旁白 + 12% 真实无版权 BGM」、无底部品牌浮条与全屏静态尾卡、自动产出 `9:16` + `3:4` 双封面与 8 帧质检联系图。
@@ -23,9 +23,11 @@
 
 | 形态 | 标识 | 费用口径 | 旁白 | 底层管线 | 适用场景 |
 | :--- | :--- | :--- | :---: | :--- | :--- |
-| **`大字报`** | `poster` | 免费（0 点） | ✕ | `render_poster.py`（离线直出） | 8.8s 风景空镜 + 满屏大字，高频日更主力 |
+| **`大字报`** | `poster` | 免费（0 点） | ✕ | `render_poster.py`（离线直出） | 8.8s 风景空镜 + 分段高亮/逐层浮现大字报，高频日更主力 |
 | **`动效片`** | `motion` | 免费（0 点） | ✓（AI） | OpenMotion / HyperFrames | 10s 多屏卡片动效 + 5 套浅色主题轮换 |
-| **`实拍混剪`** | `montage` | 免费（0 点） | ✓（AI） | `package_ai_video.py` + HeyGen HyperFrames | 本地实拍视频/图片防重拼接 + 干声旁白 |
+| **`实拍混剪`** | `montage` | 免费（0 点） | ✓（AI） | `package_ai_video.py` + HeyGen HyperFrames | 3 段本地实拍视频/图片防重拼接 + 干声旁白 |
+| **`实拍快剪`** | `fastcut` | 免费（0 点） | ✓（AI） | `render_footage_video.py`（离线零浏览器） | 6–8 个 1.2–2.0s 快切实拍短镜头 + 卡点字幕 |
+| **`前后对比片`** | `before_after` | 免费（0 点） | ✓（AI） | `render_footage_video.py`（离线零浏览器） | 上下分屏对比（清理前 vs 清空后徽章）+ 强共鸣口播 |
 | **`图文故事片`** | `storybook` | 按图源定（可 0 点） | ✓（AI） | `storybook_builder.py` + HeyGen HyperFrames | 4–6 张分镜图平滑推镜成片 + **小红书 3:4 轮播套图** |
 | **`即梦片`** | `dreamina` | 扣即梦积分（Opt-in） | ✓ | `dreamina_runner.py` + HeyGen HyperFrames | 纯即梦口播或「即梦 5s 开场 + 本地实拍」省积分混剪 |
 | **`Flow片`** | `flow` | 扣 Google 点数（Opt-in） | ✓ | `ego-lite` + Google Flow + HeyGen HyperFrames | `Omni 1.2 Flash` 口播或 `Veo 3.1 Lite` 10 点省点混剪 |
@@ -145,10 +147,12 @@ yidehai-video/
 │   ├── 08-ai-video-engines.md             # 即梦 CLI / Google Flow(ego-lite) / 实拍混剪 / MotionGit 实操手册
 │   ├── 09-motion-batch-field-notes.md     # 动效片批量实战手册（配色轮换 / 旁白+12% BGM 混音 / 子合成避坑）
 │   ├── 10-storybook-workflow.md           # 图文故事片一鱼两吃手册（图源 4 选 1 护栏 + 推镜视频 + 3:4 轮播）
+│   ├── 11-local-footage-formats.md        # 本地实拍库专用形态手册（实拍快剪 fastcut & 前后对比片 before_after）
 │   └── media-catalog.json                 # 在线免版权 BGM 备用清单（GitHub Releases 托管）
 └── scripts/
-    ├── media_manager.py                   # 本机配置、共享合规校验、跨进程文件锁、素材防重与在线拉取
-    ├── render_poster.py                   # 大字报离线渲染器（1080x1920 成片 + 9:16 & 3:4 双封面）
+    ├── media_manager.py                   # 本机配置、生成前硬校验、共享合规校验、跨进程锁、分桶防重与在线拉取
+    ├── render_poster.py                   # 大字报离线渲染器（关键词高亮 + 逐段轻浮现 + loudnorm + 双封面）
+    ├── render_footage_video.py            # 本地素材库离线出片器（实拍快剪 fastcut / 前后对比片 before_after）
     ├── package_ai_video.py                # 通用 AI/实拍视频包装器（HeyGen HyperFrames · 12% BGM · 8 帧质检）
     ├── storybook_builder.py               # 图文故事片构建器（推镜短视频 + 小红书 3:4 轮播套图）
     ├── dreamina_runner.py                 # 即梦 CLI 防呆调度器（提交前原子落盘、防重复扣分、断点续查）

@@ -556,14 +556,14 @@ def run_preflight(track: str, silent: bool = False, cfg: dict | None = None, pro
                 ],
             })
 
-    # 2) 实拍素材校验
-    if track == "montage":
+    # 2) 实拍素材校验（实拍混剪 / 实拍快剪 / 前后对比片均强依赖本地实拍库）
+    if track in {"montage", "fastcut", "before_after"}:
         has_footage = _dir_has_files(cfg.get("local_footage_dirs", []), video_exts | image_exts)
         if not has_footage:
             missing.append({
                 "item": "local_footage_dirs",
                 "label": "本地业务实拍素材目录（必配）",
-                "reason": "实拍混剪需要真实的本地视频或照片素材，当前未配置或目录内无可用文件。",
+                "reason": f"{track} 轨道需要真实的本地业务视频或照片素材，当前未配置或目录内无可用文件。",
                 "how_to_fix": [
                     "python3 scripts/media_manager.py config --add-footage-dir \"<本地实拍目录>\"",
                 ],
@@ -598,7 +598,7 @@ def run_preflight(track: str, silent: bool = False, cfg: dict | None = None, pro
             })
 
     # 5) 背景音乐校验（所有非 --silent 轨道必配，严禁悄悄产出无声半成品）
-    if not silent and track in {"poster", "motion", "montage", "storybook", "dreamina", "flow"}:
+    if not silent and track in {"poster", "motion", "montage", "fastcut", "before_after", "storybook", "dreamina", "flow"}:
         bgm_ready = has_bgm_local or has_bgm_cache or has_bgm_api
         if not bgm_ready and probe_online_bgm:
             got = ensure_online_media("bgm_tracks", count=1, cfg=cfg)
@@ -656,12 +656,14 @@ def main() -> None:
     p_fetch.add_argument("--count", type=int, default=3)
     p_fetch.add_argument("--query", help="可选英文风景检索词（仅 API 模式使用）")
 
-    p_foot = sub.add_parser("footage", help="从本地业务实拍目录抽取未用过的视频/图片素材（全局防重）")
+    p_foot = sub.add_parser("footage", help="从本地业务实拍目录抽取未用过的视频/图片素材（全局防重，支持按路径关键词分桶）")
     p_foot.add_argument("--count", type=int, default=3, help="需要抽取的素材数量")
     p_foot.add_argument("--kind", choices=["any", "video", "image"], default="any", help="筛选类型")
+    p_foot.add_argument("--include-keyword", action="append", default=[], help="可选：路径或文件名必须包含的关键词（可重复，任意命中即保留）")
+    p_foot.add_argument("--exclude-keyword", action="append", default=[], help="可选：路径或文件名需排除的关键词（可重复）")
 
     p_pre = sub.add_parser("preflight", help="生成前硬校验门禁：检查目标轨道所需的视频/图片/音乐/API Key 是否齐备")
-    p_pre.add_argument("--track", choices=["poster", "motion", "montage", "storybook", "dreamina", "flow", "motiongit"], required=True)
+    p_pre.add_argument("--track", choices=["poster", "motion", "montage", "fastcut", "before_after", "storybook", "dreamina", "flow", "motiongit"], required=True)
     p_pre.add_argument("--silent", action="store_true", help="显式声明本次出无声版（跳过 BGM 强制校验）")
     p_pre.add_argument("--no-online-probe", action="store_true", help="仅检查本机配置与缓存，不触发在线 BGM 探测下载")
 
@@ -752,6 +754,8 @@ def main() -> None:
             except Exception:
                 pass
 
+        inc_kws = [k.lower() for k in (args.include_keyword or []) if k.strip()]
+        exc_kws = [k.lower() for k in (args.exclude_keyword or []) if k.strip()]
         candidates: list[Path] = []
         for d in cfg.get("local_footage_dirs", []):
             dp = Path(d).expanduser()
@@ -759,6 +763,11 @@ def main() -> None:
                 continue
             for f in dp.rglob("*"):
                 if f.is_file() and f.suffix.lower() in allow_exts and not f.name.startswith("."):
+                    full_low = str(f).lower()
+                    if inc_kws and not any(k in full_low for k in inc_kws):
+                        continue
+                    if exc_kws and any(k in full_low for k in exc_kws):
+                        continue
                     candidates.append(f)
 
         fresh = [f for f in candidates if f.name not in used_names]

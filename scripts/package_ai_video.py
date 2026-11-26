@@ -310,9 +310,10 @@ def prepare_montage_assets(
                     "setsar=1"
                 )
                 run([
-                    ffmpeg, "-y", "-v", "error", "-loop", "1", "-t", f"{c_dur:.2f}",
+                    ffmpeg, "-y", "-v", "error",
                     "-i", str(c_path), "-an", "-vf", vf,
-                    "-r", str(fps), "-c:v", "libx264", "-crf", "18", "-pix_fmt", "yuv420p",
+                    "-t", f"{c_dur:.2f}", "-r", str(fps), "-video_track_timescale", "30000",
+                    "-c:v", "libx264", "-crf", "18", "-pix_fmt", "yuv420p",
                     str(seg_out),
                 ])
             else:
@@ -321,7 +322,8 @@ def prepare_montage_assets(
                     ffmpeg, "-y", "-v", "error", "-ss", f"{c_start:.2f}", "-t", f"{c_dur:.2f}",
                     "-i", str(c_path), "-an",
                     "-vf", "scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,setsar=1",
-                    "-r", str(fps), "-c:v", "libx264", "-crf", "18", "-pix_fmt", "yuv420p",
+                    "-r", str(fps), "-video_track_timescale", "30000",
+                    "-c:v", "libx264", "-crf", "18", "-pix_fmt", "yuv420p",
                     str(seg_out),
                 ])
             seg_paths.append(seg_out)
@@ -699,7 +701,7 @@ def main() -> None:
                 "-stream_loop", "-1", "-ss", f"{bgm_start:.2f}", "-t", f"{duration:.2f}", "-i", str(bgm_src),
                 "-filter_complex",
                 f"[0:a]aresample=48000,loudnorm=I=-14:TP=-1.5:LRA=7[v];"
-                f"[1:a]aresample=48000,loudnorm=I=-16:TP=-2:LRA=11,afade=t=in:st=0:d=0.6,afade=t=out:st={fade_out_st:.2f}:d=0.9,volume=0.18[b];"
+                f"[1:a]atrim=0:{duration:.2f},asetpts=PTS-STARTPTS,aresample=48000,loudnorm=I=-16:TP=-2:LRA=11,afade=t=in:st=0:d=0.6,afade=t=out:st={fade_out_st:.2f}:d=0.9,volume=0.18[b];"
                 f"[v][b]amix=inputs=2:normalize=0:duration=first:dropout_transition=0,alimiter=limit=0.95[a]",
                 "-map", "0:v:0", "-map", "[a]",
                 "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
