@@ -143,7 +143,7 @@
    python3 scripts/api_video_runner.py check
    ```
 
-### 2. 主力模型选型与 4 套协议 Adapter 自动路由
+### 2. 主力模型选型与 5 套协议 Adapter 自动路由
 `scripts/api_video_runner.py` 会按 `--model` 自动选择协议（亦可用 `--adapter` 显式指定）：
 
 | 推荐模型 | 自动匹配协议 | 最适合场景 | 关键能力与默认参数 |
@@ -153,6 +153,7 @@
 | **`MiniMax-H3`** | `generations`（`/v1/video/generations`） | 强表现力生活剧情/动作与首帧图生 | `9:16`、`768P`、`aigc_watermark=false`，同样兼容 `--image` |
 | **`veo_3_1-fast` / `veo_3_1`** | `veo_oai`（`/v1/videos` Multipart） | 5–8s 无声高画质吸睛开场 + 本地实拍省钱混剪 | 竖屏 `720x1280`、支持 `--image` 二进制直传首帧、完成后自动走 `/content` 下载 |
 | **`kling-v3-omni` / `kling-4.0`** | `kling_compat`（`/v1/kling/video/task/*`） | 动作稳定性优先、带原生音频 | `9:16`、3–15s、支持 `--image` 首帧 |
+| **`wan3.0-video` / `wan2.7-t2v`** | `wan`（`/api/v1/services/aigc/video-generation/video-synthesis`） | 国产多镜头与自动配音视频 | 720P、`9:16`、2–30s、自动配音、支持 `--image` 首帧图 |
 
 ### 3. 标准出片流程与防重复扣费铁律
 1. **提示词合规与写法**：套用本手册第二节 6 条铁律（`gemini-omni` / `veo` 推荐用第四节模板 A/B；豆包 / `MiniMax-H3` / `kling` 可直接用第三节自然中文模板）。`api_video_runner.py submit` 在发送 HTTP 请求前会先自动跑 `check_forbidden_terms`，命中禁用词直接拦截（**0 扣费**）。

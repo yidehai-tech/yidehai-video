@@ -11,11 +11,12 @@
               标为 uncertain_timeout 并拦截二次重试。支持 --poll 自动轮询与原子下载校验。
   3. query  : 读取 api_video_task.json 中的 task_id（或显式传入）续查服务端进度，完成后无损下载校验。
 
-内置 4 套协议 Adapter（可通过 --adapter 显式指定或按模型名自动路由）：
+内置 5 套协议 Adapter（可通过 --adapter 显式指定或按模型名自动路由）：
   - omni         : OpenAI Videos JSON（如 gemini-omni-1.2-flash）
   - generations  : 统一 Generations JSON（如 sd-2.0 / sd-2.5 / MiniMax-H3）
   - veo_oai      : OpenAI Videos Multipart + /content 下载（如 veo_3_1 / veo_3_1-fast）
   - kling_compat : 可灵兼容协议（如 kling-v3-omni / kling-4.0）
+  - wan          : 通义万相协议（如 wan2.7-t2v / wan2.7-i2v / wan3.0-video）
 """
 
 from __future__ import annotations
@@ -43,7 +44,7 @@ import media_manager  # noqa: E402
 import task_tracker  # noqa: E402
 
 VIDEO_MODEL_HINT_RE = re.compile(
-    r"(omni|veo|sd-|doubao|seedance|minimax|hailuo|kling|wan\d|wan-|vidu|grok.*video)",
+    r"(gemini-omni|omni-\d|veo|sd-\d|seedance|minimax-h\d|hailuo|kling|wan\d.*(?:t2v|i2v|video)|vidu|grok.*video|sora)",
     re.I,
 )
 SUCCEEDED_STATUSES = {"completed", "succeeded", "success", "succeess", "succeed", "done"}
@@ -108,8 +109,10 @@ def resolve_adapter(model: str, explicit: str = "auto") -> str:
         return "veo_oai"
     if "kling" in m:
         return "kling_compat"
+    if "wan" in m:
+        return "wan"
     raise ValueError(
-        f"无法根据模型名 {model!r} 自动识别协议适配器，请显式传入 --adapter omni|generations|veo_oai|kling_compat"
+        f"无法根据模型名 {model!r} 自动识别协议适配器，请显式传入 --adapter omni|generations|veo_oai|kling_compat|wan"
     )
 
 
@@ -459,6 +462,32 @@ def adapter_submit(
         )
         return resp
 
+    if adapter == "wan":
+        input_obj: dict[str, Any] = {"prompt": prompt}
+        if image_arg:
+            img_ref = _resolve_image_reference(image_arg, base_url, api_key, user_id, upload_doubao=False)
+            input_obj["media"] = [{"type": "first_frame", "url": img_ref}]
+        payload = {
+            "model": model,
+            "input": input_obj,
+            "parameters": {
+                "resolution": resolution or "720P",
+                "ratio": ratio,
+                "duration": int(duration),
+                "audio": bool(audio),
+                "watermark": False,
+            },
+        }
+        _, resp = http_json(
+            "POST",
+            f"{base_url}/api/v1/services/aigc/video-generation/video-synthesis",
+            api_key=api_key,
+            user_id=user_id,
+            payload=payload,
+            timeout=90,
+        )
+        return resp
+
     raise ValueError(f"不支持的 adapter: {adapter}")
 
 
@@ -470,6 +499,15 @@ def adapter_query(adapter: str, base_url: str, api_key: str, user_id: str, task_
             api_key=api_key,
             user_id=user_id,
             payload={"task_id": task_id},
+            timeout=45,
+        )
+        return resp
+    if adapter == "wan":
+        _, resp = http_json(
+            "GET",
+            f"{base_url}/api/v1/tasks/{task_id}",
+            api_key=api_key,
+            user_id=user_id,
             timeout=45,
         )
         return resp
@@ -971,7 +1009,7 @@ def main() -> None:
     p_sub.add_argument("--task-dir", required=True, help="任务目录（保存 api_video_task.json 与下载原片）")
     p_sub.add_argument("--prompt", required=True, help="生成提示词（提交前自动过合规词检查）")
     p_sub.add_argument("--model", default="", help="模型名（默认读取配置 video_api_default_model 或 gemini-omni-1.2-flash）")
-    p_sub.add_argument("--adapter", choices=["auto", "omni", "generations", "veo_oai", "kling_compat"], default="auto")
+    p_sub.add_argument("--adapter", choices=["auto", "omni", "generations", "veo_oai", "kling_compat", "wan"], default="auto")
     p_sub.add_argument("--duration", type=int, default=8, help="视频时长（秒，默认 8）")
     p_sub.add_argument("--ratio", default="9:16", help="画面比例（默认 9:16 竖屏）")
     p_sub.add_argument("--resolution", default="", help="可选分辨率（如 720p / 768P）")
@@ -991,7 +1029,7 @@ def main() -> None:
     p_q.add_argument("--task-dir", required=True, help="任务目录")
     p_q.add_argument("--task-id", default="", help="可选显式 task_id")
     p_q.add_argument("--model", default="", help="可选模型名（仅未读到状态文件时用于识别协议）")
-    p_q.add_argument("--adapter", choices=["auto", "omni", "generations", "veo_oai", "kling_compat"], default="auto")
+    p_q.add_argument("--adapter", choices=["auto", "omni", "generations", "veo_oai", "kling_compat", "wan"], default="auto")
     p_q.add_argument("--poll", type=int, default=0, help="可选轮询秒数（默认 0 仅查一次）")
     p_q.add_argument("--poll-interval", type=int, default=5, help="轮询间隔秒数")
     p_q.add_argument("--download", action="store_true", help="完成后下载 MP4 原片到任务目录")

@@ -13,8 +13,8 @@
 
 - **10 大生产轨道统一调度**：覆盖 0 成本高频日更（`大字报` / `动效片` / `实拍混剪` / `实拍快剪` / `前后对比片` / `口播包装`）、一鱼两吃（`图文故事片`）与付费高拟真 AI 视频（`即梦片` / `Flow片` / **`API片`**）。
 - **全平台 Agent 自动分级适配**：自动识别运行环境（L1 桌面执行型 / L2 轻沙箱型 / L3 纯对话知识库型），在任意工具中开箱即用。
-- **积分与费用自主选择护栏**：默认仅使用 0 积分免费轨道；调用宿主内置生图、即梦 CLI 或 Google Flow 前均要求显式选择与确认，并具备提交前原子落盘防重复扣分机制。
-- **统一成片质量标准**：默认「旁白 + 12% 真实无版权 BGM」、无底部品牌浮条与全屏静态尾卡、自动产出 `9:16` + `3:4` 双封面与 8 帧质检联系图。
+- **积分与费用自主选择护栏**：默认仅使用 0 积分免费轨道；调用宿主内置生图、即梦 CLI、Google Flow 或云端视频 API 前均要求显式选择与确认，并具备提交前原子落盘防重复扣费机制。
+- **统一成片质量标准**：默认启用 EBU R128 响度归一化混音（有旁白轨道：**人声 `-14 LUFS` + 真实无版权 BGM `-16 LUFS × 18%`**；`大字报`：**`-16 LUFS × 0.85`**）、无底部品牌浮条与全屏静态尾卡、自动产出 `9:16` + `3:4` 双封面与 8 帧质检联系图。
 - **跨 Agent 共享任务台账与离线仪表盘**：`tasks.json` + 单文件静态 `dashboard.html` 自动记录各宿主出片状态、成功率、各形态分布与封面缩略图，支持跨 Agent 断点接力与僵尸中断任务自愈。
 - **本机配置与防重隔离**：素材目录、API Key、防重账本与任务台账全部持久化在 `~/.yidehai-video/`，与 Skill 仓库彻底解耦。
 
@@ -60,7 +60,7 @@ npx skills add yidehai-tech/yidehai-video
 ### 方式三：纯对话 / 知识库型 Agent 接入
 
 适用于 **豆包、通义千问、Kimi、扣子、ChatGPT Projects** 等无本地终端环境的工具：  
-将本仓库的 `SKILL.md` 与 `knowledge/01–10` 导入对应智能体或项目知识库，即可自动切换为 **编导 + 合规自检 + Prompt 工厂模式**，直接产出合规脚本、双封面文案及可直接粘贴进即梦/Flow/剪映的防穿帮提示词。
+将本仓库的 `SKILL.md` 与 `knowledge/01–11` 导入对应智能体或项目知识库，即可自动切换为 **编导 + 合规自检 + Prompt 工厂模式**，直接产出合规脚本、双封面文案及可直接粘贴进即梦/Flow/剪映的防穿帮提示词。
 
 ### 多 Agent 工具共用同一项目（自动自愈挂载，无需手动折腾）
 
@@ -101,14 +101,19 @@ python3 scripts/media_manager.py config --add-bg-dir "/path/to/scenic"
 python3 scripts/media_manager.py config --set-jamendo-id "<YOUR_JAMENDO_CLIENT_ID>"
 python3 scripts/media_manager.py config --add-bgm-dir "/path/to/bgm"
 
-# 配置本地业务实拍目录（供实拍混剪与省点混剪防重抽取）
+# 配置本地业务实拍目录（供实拍混剪 / 实拍快剪 / 前后对比片 / 省点混剪防重抽取）
 python3 scripts/media_manager.py config --add-footage-dir "/path/to/footage"
 
-# （可选）配置云端聚合视频 API（供 API片 使用，建议使用带金额上限的分组令牌）
-python3 scripts/media_manager.py config --set-video-api-url "https://api.tiantoken.com" --set-video-api-key "<YOUR_LIMIT_TOKEN>"
+# （可选）配置云端聚合视频 API（兼容 New-API / OpenAI Videos 网关；建议使用带金额上限的分组令牌）
+python3 scripts/media_manager.py config --set-video-api-url "<YOUR_VIDEO_API_BASE_URL>" --set-video-api-key "<YOUR_LIMIT_TOKEN>"
+python3 scripts/api_video_runner.py check
 
 # 设置图文故事片默认生图来源（ask / host_tool / dreamina / free_api / local）
 python3 scripts/media_manager.py config --set-image-source ask
+
+# 查看跨 Agent 共享任务台账与待续渲列表（双击 ~/.yidehai-video/dashboard.html 可离线看图表）
+python3 scripts/task_tracker.py summary
+python3 scripts/task_tracker.py list --status pending_render
 ```
 
 ### 2. 对话式调用示例
@@ -116,11 +121,12 @@ python3 scripts/media_manager.py config --set-image-source ask
 ```text
 帮我做一条换季清衣柜的大字报视频
 帮我批量生成 20 条旧衣回收视频（默认 50% 大字报 + 50% 动效片）
-用本地实拍素材做一条 0 点实拍混剪
+用本地实拍素材做一条 0 点实拍混剪 / 实拍快剪 / 前后对比片
 帮我做一条旧羽绒服回收的图文故事片（同步出小红书轮播图）
 用即梦 CLI 做一条省积分混剪视频
 用 Google Flow 省点轮换出一条旧鞋旧包回收视频
-用云端视频 API（Omni / Seedance）做一条真人口播视频
+用云端视频 API（Omni / Seedance / MiniMax / 万相）做一条真人口播视频
+查看今天出片统计 / 打开任务仪表盘
 ```
 
 ---
@@ -139,11 +145,11 @@ python3 scripts/media_manager.py config --set-image-source ask
 
 ```text
 yidehai-video/
-├── SKILL.md                               # Skill 入口：L1/L2/L3 适配、7 形态工作流与合规自检
+├── SKILL.md                               # Skill 入口：L1/L2/L3 适配、10 形态工作流与合规自检
 ├── README.md                              # 项目说明文档
 ├── knowledge/
 │   ├── 00-auto-setup.md                   # OpenMotion / HeyGen HyperFrames / ego-lite / dreamina 自动检测与安装
-│   ├── 01-brand-rules.md                  # 最高优先级：合规禁用词、无浮条利落收尾与统一 12% BGM 音频口径
+│   ├── 01-brand-rules.md                  # 最高优先级：合规禁用词、无浮条利落收尾与统一 EBU R128 音频口径
 │   ├── 02-business-faq.md                 # 脱敏版公开业务规则（起收门槛、可收品类、流程口径）
 │   ├── 03-copy-formula.md                 # 写稿方法论与四维选题防枯竭矩阵
 │   ├── 04-visual-style.md                 # 竖屏安全区、5 套浅色主题轮换、双封面与大字报版式规范
@@ -151,7 +157,7 @@ yidehai-video/
 │   ├── 06-rendering-playbook.md           # OpenMotion 组件补齐、lint、同步渲染与抽帧质检
 │   ├── 07-poster-batch-field-notes.md     # 大字报批量出片实战避坑指南
 │   ├── 08-ai-video-engines.md             # 即梦 CLI / Google Flow / 云端视频 API / 实拍混剪 / MotionGit 实操手册
-│   ├── 09-motion-batch-field-notes.md     # 动效片批量实战手册（配色轮换 / 旁白+12% BGM 混音 / 子合成避坑）
+│   ├── 09-motion-batch-field-notes.md     # 动效片批量实战手册（配色轮换 / loudnorm 混音 / 子合成避坑）
 │   ├── 10-storybook-workflow.md           # 图文故事片一鱼两吃手册（图源 4 选 1 护栏 + 推镜视频 + 3:4 轮播）
 │   ├── 11-local-footage-formats.md        # 本地实拍库专用形态手册（实拍快剪 fastcut & 前后对比片 before_after）
 │   └── media-catalog.json                 # 在线免版权 BGM 备用清单（GitHub Releases 托管）
@@ -159,10 +165,10 @@ yidehai-video/
     ├── media_manager.py                   # 本机配置、生成前硬校验、共享合规校验、跨进程锁、分桶防重与在线拉取
     ├── render_poster.py                   # 大字报离线渲染器（关键词高亮 + 逐段轻浮现 + loudnorm + 双封面）
     ├── render_footage_video.py            # 本地素材库离线出片器（实拍快剪 fastcut / 前后对比片 before_after）
-    ├── package_ai_video.py                # 通用 AI/实拍视频包装器（HeyGen HyperFrames · 12% BGM · 8 帧质检）
+    ├── package_ai_video.py                # 通用 AI/实拍视频包装器（HeyGen HyperFrames · loudnorm 混音 · 8 帧质检）
     ├── storybook_builder.py               # 图文故事片构建器（推镜短视频 + 小红书 3:4 轮播套图）
     ├── dreamina_runner.py                 # 即梦 CLI 防呆调度器（提交前原子落盘、防重复扣分、断点续查）
-    ├── api_video_runner.py                # 云端视频 API 防呆调度器（4 协议 Adapter · 防重复扣费 · 断点续查）
+    ├── api_video_runner.py                # 云端视频 API 防呆调度器（5 协议 Adapter · 防重复扣费 · 断点续查）
     ├── batch_runner.py                    # 批量出片调度器（断点续跑 + 可视化审片台 review.html）
     ├── task_tracker.py                    # 跨 Agent 共享任务台账（tasks.json）与离线统计仪表盘（dashboard.html）
     ├── motion_templates.py                # 动效片三套母版（5 套浅色主题轮换，无品牌浮条）
