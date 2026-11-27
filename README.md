@@ -1,6 +1,6 @@
 # yidehai-video
 
-![Version](https://img.shields.io/badge/version-2.10.0-2B8A3E)
+![Version](https://img.shields.io/badge/version-2.11.0-2B8A3E)
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue)
 ![Standard](https://img.shields.io/badge/Agent%20Skills-SKILL.md-orange)
 
@@ -108,8 +108,9 @@ python3 scripts/media_manager.py config --add-footage-dir "/path/to/footage"
 python3 scripts/media_manager.py config --set-video-api-url "<YOUR_VIDEO_API_BASE_URL>" --set-video-api-key "<YOUR_LIMIT_TOKEN>"
 python3 scripts/api_video_runner.py check
 
-# 设置图文故事片默认生图来源（ask / host_tool / dreamina / free_api / local）
+# 设置图文故事片默认生图来源（ask / host_tool / dreamina / api_image / free_api / local）
 python3 scripts/media_manager.py config --set-image-source ask
+python3 scripts/api_image_runner.py check   # （若复用云端 API 余额生图，可先零扣费查看可用生图模型）
 
 # 查看跨 Agent 共享任务台账与待续渲列表（双击 ~/.yidehai-video/dashboard.html 可离线看图表）
 python3 scripts/task_tracker.py summary
@@ -169,6 +170,7 @@ yidehai-video/
     ├── storybook_builder.py               # 图文故事片构建器（推镜短视频 + 小红书 3:4 轮播套图）
     ├── dreamina_runner.py                 # 即梦 CLI 防呆调度器（提交前原子落盘、防重复扣分、断点续查）
     ├── api_video_runner.py                # 云端视频 API 防呆调度器（5 协议 Adapter · 防重复扣费 · 断点续查）
+    ├── api_image_runner.py                # 云端聚合生图调度器（复用 API 余额为图文故事片自动出图）
     ├── batch_runner.py                    # 批量出片调度器（断点续跑 + 可视化审片台 review.html）
     ├── task_tracker.py                    # 跨 Agent 共享任务台账（tasks.json）与离线统计仪表盘（dashboard.html）
     ├── motion_templates.py                # 动效片三套母版（5 套浅色主题轮换，无品牌浮条）

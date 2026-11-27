@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-亿德海「图文故事片」一鱼两吃构建器（v2.6.0 · 跨平台 macOS / Windows）
+亿德海「图文故事片」一鱼两吃构建器（v2.11.0 · 跨平台 macOS / Windows）
 
-输入：4–6 张风格统一的分镜图（来源由成员自由选择：当前 Agent 内置生图 / 即梦 CLI text2image / 免费图库 API / 本地图片）
+输入：4–6 张风格统一的分镜图（来源由成员 5 选 1 确认：当前 Agent 内置生图 / 即梦 CLI / 云端聚合 API 生图 / 免费图库 API / 本地图片）
 输出：
-  1. 短视频成片（调用 package_ai_video.py：图片自动 Ken Burns 平滑推镜 + Edge-TTS 旁白 + 12% 无版权 BGM +
+  1. 短视频成片（调用 package_ai_video.py：图片自动 Ken Burns 平滑推镜 + Edge-TTS 旁白 + EBU R128 响度归一化无版权 BGM +
      HeyGen HyperFrames 高画质字幕/顶标渲染 + 无品牌浮条利落收尾 + 8 帧质检图 + 双封面）
   2. 小红书 / 抖音图文轮播套图（xhs-carousel/ 下自动生成 1080x1440 3:4 带高清描边文案的轮播图组）
 """
@@ -21,8 +21,11 @@ from typing import Any
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
-from media_manager import check_forbidden_terms, safe_child_path, sanitize_slug  # noqa: E402
+import api_image_runner  # noqa: E402
+from media_manager import CACHE_IMG_DIR, check_forbidden_terms, load_config, safe_child_path, sanitize_slug  # noqa: E402
 from package_ai_video import find_cjk_font  # noqa: E402
+
+DEFAULT_NO_TEXT_SUFFIX = "画面中绝对不要出现任何文字、汉字、英文字母、数字、气泡框、水印和 logo。"
 
 
 def render_xhs_carousel(panels: list[dict[str, Any]], out_dir: Path, font_path: Path, title: str) -> list[str]:
@@ -126,6 +129,51 @@ def render_xhs_carousel(panels: list[dict[str, Any]], out_dir: Path, font_path: 
     return saved
 
 
+def ensure_panel_images(
+    job: dict[str, Any],
+    panels: list[dict[str, Any]],
+    slug: str,
+    generate_images: bool = False,
+    image_model: str = "",
+    image_ratio: str = "9:16",
+    cache_dir: Path | None = None,
+) -> list[dict[str, Any]]:
+    """若开启自动生图或 job 设为 api_image，为缺少本地图片的分镜自动调用云端聚合 API 生图。"""
+    want_gen = bool(generate_images or str(job.get("image_source") or "").strip() == "api_image")
+    if not want_gen:
+        return []
+    cfg = load_config()
+    base_cache = cache_dir or Path(cfg.get("cache_img_dir") or CACHE_IMG_DIR)
+    panel_dir = base_cache / "panels" / slug
+    style_prefix = str(job.get("style_prefix") or "").strip()
+    character_lock = str(job.get("character_lock") or "").strip()
+    no_text_suffix = str(job.get("no_text_suffix") or DEFAULT_NO_TEXT_SUFFIX).strip()
+    model = (image_model or str(job.get("image_model") or "")).strip()
+    ratio = str(job.get("image_ratio") or image_ratio or "9:16").strip()
+
+    generated: list[dict[str, Any]] = []
+    for idx, panel in enumerate(panels, 1):
+        raw_img = str(panel.get("image") or "").strip()
+        target = Path(raw_img).expanduser().resolve() if raw_img else (panel_dir / f"{idx:02d}.png")
+        if target.is_file() and target.stat().st_size > 2048:
+            panel["image"] = str(target)
+            generated.append({"panel": idx, "skipped": True, "file": str(target)})
+            continue
+        p_prompt = str(panel.get("prompt") or "").strip()
+        if not p_prompt:
+            raise FileNotFoundError(f"第 {idx} 幕既无已有图片（{target}），也未提供 prompt 无法自动生图。")
+        full_prompt = " ".join(x for x in (style_prefix, character_lock, p_prompt, no_text_suffix) if x)
+        res = api_image_runner.generate_one(
+            prompt=full_prompt,
+            out_path=target,
+            model=model,
+            ratio=ratio,
+        )
+        panel["image"] = res["file"]
+        generated.append({"panel": idx, **res})
+    return generated
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="亿德海「图文故事片」一鱼两吃构建器（短视频 + 小红书 3:4 轮播图）")
     parser.add_argument("--job", required=True, help="图文故事片配置 JSON 路径")
@@ -134,6 +182,9 @@ def main() -> None:
     parser.add_argument("--quality", choices=["draft", "looks", "delivery"], default="delivery")
     parser.add_argument("--silent", action="store_true", help="视频不叠加 BGM（保留干声旁白）")
     parser.add_argument("--carousel-only", action="store_true", help="仅导出小红书 3:4 轮播套图，不渲染视频")
+    parser.add_argument("--generate-images", action="store_true", help="自动复用云端 API Key 为带 prompt 的分镜生图（已存在自动跳过）")
+    parser.add_argument("--image-model", default="", help="可选覆盖生图模型（如 gemini-3.1-flash-lite-image / doubao-seedream-5-5）")
+    parser.add_argument("--image-ratio", default="9:16", help="生图比例（默认 9:16）")
     args = parser.parse_args()
 
     job = json.loads(Path(args.job).expanduser().read_text(encoding="utf-8"))
@@ -150,6 +201,7 @@ def main() -> None:
     for p in panels:
         texts.append(str(p.get("caption", "")))
         texts.append(str(p.get("narration", "")))
+        texts.append(str(p.get("prompt", "")))
     hits = check_forbidden_terms(texts)
     if hits:
         raise ValueError(f"合规硬红线拦截！图文故事片命中禁用词：{', '.join(hits)}")
@@ -157,15 +209,25 @@ def main() -> None:
     slug = sanitize_slug(job.get("slug", "storybook"), fallback="storybook")
     font_path = find_cjk_font()
 
+    out_root = Path(args.out_dir).expanduser().resolve()
+    gen_logs = ensure_panel_images(
+        job=job,
+        panels=panels,
+        slug=slug,
+        generate_images=args.generate_images,
+        image_model=args.image_model,
+        image_ratio=args.image_ratio,
+        cache_dir=(safe_child_path(out_root, slug) if args.carousel_only else None),
+    )
+
     if args.carousel_only:
-        out_root = Path(args.out_dir).expanduser().resolve()
         out_dir = safe_child_path(out_root, slug)
         out_dir.mkdir(parents=True, exist_ok=True)
         carousel = render_xhs_carousel(panels, out_dir, font_path, str(job.get("title", "")))
-        print(json.dumps({"ok": True, "mode": "carousel_only", "xhs_carousel": carousel}, ensure_ascii=False, indent=2))
+        print(json.dumps({"ok": True, "mode": "carousel_only", "generated_images": gen_logs, "xhs_carousel": carousel}, ensure_ascii=False, indent=2))
         return
 
-    # 拼装标准 montage job 交给 package_ai_video.py（HeyGen HyperFrames + 图片 Ken Burns 推镜 + 旁白 + 12% BGM）
+    # 拼装标准 montage job 交给 package_ai_video.py（HeyGen HyperFrames + 图片 Ken Burns 推镜 + 旁白 + EBU R128 响度归一化 BGM）
     full_narration = str((job.get("voiceover") or {}).get("text") or "").strip()
     if not full_narration:
         full_narration = "。".join(str(p.get("narration") or p.get("caption") or "").strip() for p in panels if (p.get("narration") or p.get("caption")))

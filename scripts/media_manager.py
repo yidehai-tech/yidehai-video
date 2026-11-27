@@ -211,11 +211,12 @@ def load_config() -> dict:
     data.setdefault("cache_bgm_dir", str(CACHE_BGM_DIR))
     data.setdefault("cache_img_dir", str(CACHE_IMG_DIR))
     data.setdefault("bg_source", "both")  # both | local | online
-    data.setdefault("default_image_source", "")  # "" (ask) | host_tool | dreamina | free_api | local
+    data.setdefault("default_image_source", "")  # "" (ask) | host_tool | dreamina | api_image | free_api | local
     data.setdefault("video_api_base_url", "")
     data.setdefault("video_api_key", "")
     data.setdefault("video_api_user_id", "")
     data.setdefault("video_api_default_model", "gemini-omni-1.2-flash")
+    data.setdefault("image_api_default_model", "gemini-3.1-flash-lite-image")
     data.setdefault("initialized", False)
     data.setdefault("onboarding_dismissed", False)
     return data
@@ -597,8 +598,17 @@ def run_preflight(track: str, silent: bool = False, cfg: dict | None = None, pro
                     "python3 scripts/media_manager.py config --set-pexels-key \"<KEY>\" 或 --set-pixabay-key \"<KEY>\"",
                 ],
             })
+        elif img_src == "api_image" and (not video_api_base_url or not video_api_key):
+            missing.append({
+                "item": "video_api_config",
+                "label": "云端聚合 API 网关地址与令牌（api_image 必配）",
+                "reason": "当前图文故事片图源设为 api_image，将复用云端聚合 API 令牌，但尚未配置 video_api_base_url 或 video_api_key。",
+                "how_to_fix": [
+                    "python3 scripts/media_manager.py config --set-video-api-url \"<BASE_URL>\" --set-video-api-key \"<YOUR_LIMIT_TOKEN>\"",
+                ],
+            })
         elif not img_src:
-            notes.append("图文故事片分镜图源尚未预设，开工前必须先让用户 4 选 1（宿主内置生图 / 即梦 CLI / 免费图库 API / 本地图片），严禁静默扣积分。")
+            notes.append("图文故事片分镜图源尚未预设，开工前必须先让用户 5 选 1（宿主内置生图 / 即梦 CLI / 云端聚合 API 生图 / 免费图库 API / 本地图片），严禁静默扣积分。")
 
     # 4) 口播包装模板校验
     if track == "motiongit":
@@ -674,14 +684,15 @@ def main() -> None:
     p_cfg.add_argument("--add-bgm-dir", help="添加并记住本地免版权轻音乐目录")
     p_cfg.add_argument("--set-motion-templates-dir", help="设置本机 MotionGit 免费口播模板目录")
     p_cfg.add_argument("--bg-source", choices=["both", "local", "online"], help="背景来源策略：both(混合) / local / online")
-    p_cfg.add_argument("--set-image-source", choices=["ask", "host_tool", "dreamina", "free_api", "local"], help="图文故事片默认生图来源（ask=每次询问 / host_tool=宿主内置生图 / dreamina=即梦CLI / free_api=免费图库API / local=本地图片）")
+    p_cfg.add_argument("--set-image-source", choices=["ask", "host_tool", "dreamina", "api_image", "free_api", "local"], help="图文故事片默认生图来源（ask=每次询问 / host_tool=宿主内置生图 / dreamina=即梦CLI / api_image=云端聚合API生图 / free_api=免费图库API / local=本地图片）")
     p_cfg.add_argument("--set-pexels-key", help="保存可选 Pexels 免费 API Key 到本机配置")
     p_cfg.add_argument("--set-pixabay-key", help="保存可选 Pixabay 免费 API Key 到本机配置")
     p_cfg.add_argument("--set-jamendo-id", help="保存可选 Jamendo 免费音乐 Client ID 到本机配置")
     p_cfg.add_argument("--set-video-api-url", help="保存云端视频 API 网关地址（自动归一化，如 https://api.tiantoken.com）")
     p_cfg.add_argument("--set-video-api-key", help="保存云端视频 API 专属令牌 Key 到本机配置（建议使用带额度上限的分组令牌）")
     p_cfg.add_argument("--set-video-api-user-id", help="保存可选 New-Api-User ID（仅用于查询令牌使用情况）")
-    p_cfg.add_argument("--set-video-api-model", help="设置云端视频 API 默认模型名（如 gemini-omni-1.2-flash / sd-2.0 / MiniMax-H3）")
+    p_cfg.add_argument("--set-video-api-model", help="设置云端视频 API 默认模型名（如 sd-2.0-fast / gemini-omni-1.2-flash / MiniMax-H3）")
+    p_cfg.add_argument("--set-image-api-model", help="设置云端聚合 API 默认生图模型名（如 gemini-3.1-flash-lite-image / doubao-seedream-5-5）")
     p_cfg.add_argument("--mark-initialized", action="store_true", help="标记首次素材与环境初始化已完成，后续不再主动弹窗")
     p_cfg.add_argument("--dismiss-onboarding", action="store_true", help="标记用户已明确跳过首次引导，后续不再提醒")
 
@@ -755,6 +766,9 @@ def main() -> None:
             changed = True
         if args.set_video_api_model:
             cfg["video_api_default_model"] = args.set_video_api_model.strip()
+            changed = True
+        if args.set_image_api_model:
+            cfg["image_api_default_model"] = args.set_image_api_model.strip()
             changed = True
         if args.mark_initialized:
             cfg["initialized"] = True

@@ -1,6 +1,6 @@
 # 图文故事片（AI 分镜图 + 推镜视频 + 小红书轮播一鱼两吃）实战手册
 
-> **定位**：用 4–6 张风格统一的插画/生活分镜图，一键同时产出 **① 15–20 秒高留存竖屏故事短视频**（自动平滑 Ken Burns 推镜 + `Edge-TTS` 旁白 + 12% 无版权 BGM + HeyGen HyperFrames 渲染，无品牌浮条）与 **② `xhs-carousel/` 3:4 小红书/抖音图文轮播套图**。
+> **定位**：用 4–6 张风格统一的插画/生活分镜图，一键同时产出 **① 15–20 秒高留存竖屏故事短视频**（自动平滑 Ken Burns 推镜 + `Edge-TTS` 旁白 + EBU R128 `-14/-16 LUFS` 无版权 BGM + HeyGen HyperFrames 渲染，无品牌浮条）与 **② `xhs-carousel/` 3:4 小红书/抖音图文轮播套图**。
 > 成本仅为 AI 视频的约 1/10，且**零人脸畸形、零手部穿帮、零口型错位**。
 
 ---
@@ -9,13 +9,18 @@
 
 市面上主流 Agent 工具（WorkBuddy、豆包、通义千问、扣子等）大多自带生图/生视频能力，但往往消耗宿主积分。因此制作 `图文故事片` 前，**先查 `media_manager.py config --show` 中的 `default_image_source`**：
 
-- 若 `default_image_source` 为空（尚未设定默认渠道），**必须先用简明 4 选 1 询问成员本条分镜图从哪来**（成员选完可顺手询问是否记住为默认）：
+- 若 `default_image_source` 为空（尚未设定默认渠道），**必须先用简明 5 选 1 询问成员本条分镜图从哪来**（成员选完可顺手询问是否记住为默认）：
   1. **选项 A · 当前 Agent 内置生图工具**（直接调 WorkBuddy / 豆包 / 千问等自带生图能力 —— 最省事，会消耗当前工具积分）；
   2. **选项 B · 即梦 CLI（`dreamina text2image`）**（走本机已登录即梦账号出图 —— 扣即梦积分，画风极稳）；
-  3. **选项 C · 免费外部图库 API（0 积分）**（走本机已配的 Pexels / Pixabay 免费 API 拉取真实生活家居图：`python3 scripts/media_manager.py fetch --kind stock_images --count 5 --query "tidy closet folding clothes"`）；
-  4. **选项 D · 本地已有图片目录（0 积分）**（直接从成员指定的本地图片目录或 `local_footage_dirs` 抽图：`python3 scripts/media_manager.py footage --kind image --count 5`）。
+  3. **选项 C · 云端聚合 API 生图（`api_image` · 推荐复用已有 API 余额）**（直接复用本机已配置的 `video_api_base_url` + `video_api_key`，支持 `gemini-3.1-flash-lite-image` / `gemini-2.5-flash-image` / `doubao-seedream-5-5` / `gpt-image-2` 等，单套 4–5 张图成本仅为 AI 视频的约 1/10，且自带已生成图片跳过防重扣费）：
+     ```sh
+     python3 scripts/api_image_runner.py check
+     python3 scripts/media_manager.py config --set-image-source api_image
+     ```
+  4. **选项 D · 免费外部图库 API（0 积分）**（走本机已配的 Pexels / Pixabay 免费 API 拉取真实生活家居图：`python3 scripts/media_manager.py fetch --kind stock_images --count 5 --query "tidy closet folding clothes"`）；
+  5. **选项 E · 本地已有图片目录（0 积分）**（直接从成员指定的本地图片目录或 `local_footage_dirs` 抽图：`python3 scripts/media_manager.py footage --kind image --count 5`）。
 
-> **硬红线**：未获成员选择或明确授权前，**绝不静默调用宿主内置生图/生视频工具，也绝不静默调用即梦扣分命令**。
+> **硬红线**：未获成员选择或明确授权前，**绝不静默调用宿主内置生图/生视频工具、云端 API 扣费命令或即梦扣分命令**。
 
 ---
 
@@ -43,11 +48,14 @@
 
 ## 三、一键一鱼两吃构建（短视频 + 小红书 3:4 轮播套图）
 
-准备好 4–6 张分镜图后，写好 `storybook_job.json`（含 `slug`、`title`、`panels: [{"image": "...", "caption": "...", "narration": "..."}]`、`cover`、`hashtags`），执行：
-
-```sh
-python3 scripts/storybook_builder.py --job storybook_job.json --out-dir outputs --organize-by-date
-```
+- **方式 1 · 已有分镜图片**：准备好 4–6 张无字分镜图后，写好 `storybook_job.json`（含 `slug`、`title`、`panels: [{"image": "...", "caption": "...", "narration": "..."}]`、`cover`、`hashtags`），执行：
+  ```sh
+  python3 scripts/storybook_builder.py --job storybook_job.json --out-dir outputs --organize-by-date
+  ```
+- **方式 2 · 复用云端聚合 API 自动生图 + 一键出片**（单套成本约 AI 视频 1/10）：在 `storybook_job.json` 的每个 `panel` 中写明 `prompt`（并在顶层设 `style_prefix`、`character_lock`），加上 `--generate-images`（已生过的分镜自动跳过，断点不重复扣费）：
+  ```sh
+  python3 scripts/storybook_builder.py --job storybook_job.json --generate-images --image-model gemini-3.1-flash-lite-image --out-dir outputs --organize-by-date
+  ```
 - 若成员只需要**小红书图文轮播**（不渲视频），加 `--carousel-only` 秒出 `xhs-carousel/01-封面.jpg` … `04-分镜.jpg`；
 - 若成员要求视频不要 BGM（留纯人声干声），加 `--silent`；
 - 交付前必须查看 `qc-contact.jpg`、`cover-9x16.jpg`、`cover-3x4.jpg` 以及 `xhs-carousel/01-封面.jpg`，核验无 AI 乱码字、无孤字换行、0 合规禁用词，并提醒发布时按平台要求勾选「AI 生成」声明。
