@@ -193,6 +193,19 @@ def _extract_image_bytes(resp: dict[str, Any], api_key: str = "") -> bytes:
     )
 
 
+def _read_ref_image_inline(ref_path: Path) -> tuple[str, str]:
+    raw = ref_path.read_bytes()
+    if raw.startswith(b"\x89PNG\r\n\x1a\n"):
+        mime = "image/png"
+    elif raw.startswith(b"\xff\xd8\xff"):
+        mime = "image/jpeg"
+    elif raw[:4] == b"RIFF" and raw[8:12] == b"WEBP":
+        mime = "image/webp"
+    else:
+        mime = "image/png"
+    return mime, base64.b64encode(raw).decode("ascii")
+
+
 def generate_one(
     prompt: str,
     out_path: str | Path,
@@ -201,6 +214,7 @@ def generate_one(
     size: str = "",
     adapter: str = "auto",
     force: bool = False,
+    ref_image: str | Path = "",
     base_url: str = "",
     user_id: str = "",
 ) -> dict[str, Any]:
@@ -226,9 +240,20 @@ def generate_one(
     api_key = settings["api_key"]
     uid = settings["user_id"]
 
+    ref_str = str(ref_image or "").strip()
+    ref_note = ""
+
     if chosen_adapter == "gemini_img":
+        parts: list[dict[str, Any]] = []
+        if ref_str:
+            ref_path = Path(ref_str).expanduser().resolve()
+            if not ref_path.is_file():
+                raise FileNotFoundError(f"参考图不存在：{ref_path}")
+            mime, b64_ref = _read_ref_image_inline(ref_path)
+            parts.append({"inline_data": {"mime_type": mime, "data": b64_ref}})
+        parts.append({"text": prompt})
         payload: dict[str, Any] = {
-            "contents": [{"parts": [{"text": prompt}]}],
+            "contents": [{"parts": parts}],
             "generationConfig": {
                 "responseModalities": ["IMAGE"],
                 "imageConfig": {"aspectRatio": ratio},
@@ -256,6 +281,15 @@ def generate_one(
             "watermark": False,
             "response_format": "url",
         }
+        if ref_str:
+            if ref_str.startswith(("http://", "https://", "data:")):
+                payload["image"] = ref_str
+            else:
+                ref_path = Path(ref_str).expanduser().resolve()
+                if not ref_path.is_file():
+                    raise FileNotFoundError(f"参考图不存在：{ref_path}")
+                mime, b64_ref = _read_ref_image_inline(ref_path)
+                payload["image"] = f"data:{mime};base64,{b64_ref}"
         _, resp = api_video_runner.http_json(
             "POST",
             f"{url_base}/api/v3/images/generations",
@@ -265,6 +299,8 @@ def generate_one(
             timeout=120,
         )
     elif chosen_adapter == "openai_img":
+        if ref_str:
+            ref_note = "openai_img 文生图接口暂不支持通过 JSON image 锁脸，如需 I2I 人物一致请改用 gemini_img 或 doubao_img。"
         size_val = size.strip() or {
             "9:16": "1024x1536",
             "3:4": "1024x1536",
@@ -290,14 +326,18 @@ def generate_one(
 
     raw_bytes = _extract_image_bytes(resp, api_key=api_key)
     saved = _save_validated_image(raw_bytes, dest)
-    return {
+    out_obj: dict[str, Any] = {
         "ok": True,
         "skipped": False,
         "model": chosen_model,
         "adapter": chosen_adapter,
         "ratio": ratio,
+        "used_ref_image": bool(ref_str and chosen_adapter in {"gemini_img", "doubao_img"}),
         **saved,
     }
+    if ref_note:
+        out_obj["ref_image_note"] = ref_note
+    return out_obj
 
 
 def cmd_check(args: argparse.Namespace) -> None:
@@ -330,6 +370,7 @@ def cmd_generate(args: argparse.Namespace) -> None:
         size=args.size,
         adapter=args.adapter,
         force=args.force,
+        ref_image=args.ref_image,
         base_url=args.base_url,
         user_id=args.user_id,
     )
@@ -347,6 +388,8 @@ def cmd_batch(args: argparse.Namespace) -> None:
     size = str(spec.get("size") or "")
     prefix = str(spec.get("style_prefix") or "").strip()
     suffix = str(spec.get("no_text_suffix") or "").strip()
+    lock_first = bool(spec.get("lock_ref_from_first", False))
+    first_ref = str(args.ref_image or "").strip()
 
     results = []
     for idx, item in enumerate(items, 1):
@@ -356,6 +399,7 @@ def cmd_batch(args: argparse.Namespace) -> None:
         parts = [p for p in (prefix, raw_p, suffix) if p]
         full_prompt = " ".join(parts)
         out_p = Path(item["out"]) if item.get("out") else (spec_path.parent / f"{idx:02d}.png")
+        use_ref = str(item.get("ref_image") or (first_ref if (lock_first and idx > 1 and not item.get("no_ref")) else "")).strip()
         res = generate_one(
             prompt=full_prompt,
             out_path=out_p,
@@ -364,15 +408,18 @@ def cmd_batch(args: argparse.Namespace) -> None:
             size=str(item.get("size") or size),
             adapter=args.adapter,
             force=args.force,
+            ref_image=use_ref,
             base_url=args.base_url,
             user_id=args.user_id,
         )
+        if idx == 1 and not first_ref:
+            first_ref = str(res["file"])
         results.append(res)
     print(json.dumps({"ok": True, "count": len(results), "items": results}, ensure_ascii=False, indent=2))
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="亿德海云端聚合生图调度器（v2.11.0 · 复用已有 API Key）")
+    parser = argparse.ArgumentParser(description="亿德海云端聚合生图调度器（v2.12.1 · 支持首图 I2I 锁脸）")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     p_chk = sub.add_parser("check", help="零扣费校验当前令牌可见的生图模型列表")
@@ -386,6 +433,7 @@ def main() -> None:
     p_gen.add_argument("--ratio", default="9:16", help="宽高比（默认 9:16 竖屏）")
     p_gen.add_argument("--size", default="", help="可选精确尺寸（仅 doubao_img / openai_img 使用）")
     p_gen.add_argument("--adapter", choices=["auto", "gemini_img", "doubao_img", "openai_img"], default="auto")
+    p_gen.add_argument("--ref-image", default="", help="可选参考图路径（I2I 图生图锁人物外貌/穿搭）")
     p_gen.add_argument("--force", action="store_true", help="即使目标图片已存在也强制重新生成")
     p_gen.add_argument("--base-url", default="", help="可选覆盖网关基址")
     p_gen.add_argument("--user-id", default="", help="可选 New-Api-User ID")
@@ -395,6 +443,7 @@ def main() -> None:
     p_bat.add_argument("--model", default="", help="可选覆盖清单内默认模型")
     p_bat.add_argument("--ratio", default="9:16", help="默认宽高比")
     p_bat.add_argument("--adapter", choices=["auto", "gemini_img", "doubao_img", "openai_img"], default="auto")
+    p_bat.add_argument("--ref-image", default="", help="可选统一参考图路径（若未设且清单开启 lock_ref_from_first 则自动用第 1 张锁脸）")
     p_bat.add_argument("--force", action="store_true", help="强制覆盖已有图片")
     p_bat.add_argument("--base-url", default="", help="可选覆盖网关基址")
     p_bat.add_argument("--user-id", default="", help="可选 New-Api-User ID")

@@ -150,26 +150,43 @@ def ensure_panel_images(
     no_text_suffix = str(job.get("no_text_suffix") or DEFAULT_NO_TEXT_SUFFIX).strip()
     model = (image_model or str(job.get("image_model") or "")).strip()
     ratio = str(job.get("image_ratio") or image_ratio or "9:16").strip()
+    lock_ref_from_first = bool(job.get("lock_ref_from_first", True))
 
     generated: list[dict[str, Any]] = []
+    first_panel_path = ""
     for idx, panel in enumerate(panels, 1):
         raw_img = str(panel.get("image") or "").strip()
         target = Path(raw_img).expanduser().resolve() if raw_img else (panel_dir / f"{idx:02d}.png")
         if target.is_file() and target.stat().st_size > 2048:
             panel["image"] = str(target)
+            if idx == 1:
+                first_panel_path = str(target)
             generated.append({"panel": idx, "skipped": True, "file": str(target)})
             continue
         p_prompt = str(panel.get("prompt") or "").strip()
         if not p_prompt:
             raise FileNotFoundError(f"第 {idx} 幕既无已有图片（{target}），也未提供 prompt 无法自动生图。")
-        full_prompt = " ".join(x for x in (style_prefix, character_lock, p_prompt, no_text_suffix) if x)
+
+        explicit_ref = str(panel.get("ref_image") or "").strip()
+        use_ref = ""
+        if idx > 1 and not bool(panel.get("no_ref", False)):
+            use_ref = explicit_ref or (first_panel_path if lock_ref_from_first else "")
+        lock_hint = (
+            "严格保持参考图中人物的脸型、发型、五官和服装完全一致，不要换脸。"
+            if use_ref and "参考图" not in p_prompt
+            else ""
+        )
+        full_prompt = " ".join(x for x in (style_prefix, character_lock, p_prompt, lock_hint, no_text_suffix) if x)
         res = api_image_runner.generate_one(
             prompt=full_prompt,
             out_path=target,
             model=model,
             ratio=ratio,
+            ref_image=use_ref,
         )
         panel["image"] = res["file"]
+        if idx == 1:
+            first_panel_path = str(res["file"])
         generated.append({"panel": idx, **res})
     return generated
 

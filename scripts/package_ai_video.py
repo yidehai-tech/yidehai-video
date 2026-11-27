@@ -305,11 +305,10 @@ def prepare_montage_assets(
             if c_path.suffix.lower() in IMAGE_EXTS:
                 # 静态图片自动做轻微 Ken Burns 缓慢推镜，避免画面死板
                 frames = max(int(round(c_dur * fps)), 30)
-                # 抗抖动：预放大 1.5× + 帧号线性推镜(on) 而非 zoom 累积，输出 1080x1920
-                # 避免 zoompan 的整数取整阶梯跳动（实测帧差波动 3.04 → 0.93）
+                # 抗抖动：预放大 1.5× + 帧号线性推镜(on) + 1.12 倍缩放上限，输出 1080x1920
                 vf = (
                     "scale=1620:2880:force_original_aspect_ratio=increase,crop=1620:2880,"
-                    f"zoompan=z='1+0.0006*on':d={frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920:fps={fps},"
+                    f"zoompan=z='min(1+0.0006*on,1.12)':d={frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920:fps={fps},"
                     "setsar=1"
                 )
                 run([
@@ -324,7 +323,7 @@ def prepare_montage_assets(
                 run([
                     ffmpeg, "-y", "-v", "error", "-ss", f"{c_start:.2f}", "-t", f"{c_dur:.2f}",
                     "-i", str(c_path), "-an",
-                    "-vf", "scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,setsar=1",
+                    "-vf", "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1",
                     "-r", str(fps), "-video_track_timescale", "30000",
                     "-c:v", "libx264", "-crf", "18", "-pix_fmt", "yuv420p",
                     str(seg_out),
