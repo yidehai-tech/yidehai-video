@@ -14,14 +14,14 @@
 `render_poster.py` 与 `batch_runner.py` 内部**直接 subprocess 调用 `ffmpeg` / `ffprobe` 这两个裸命令**（第 447/506/513 行及 `ffprobe_duration()`），不带绝对路径。而系统 PATH 里通常没有它们——即使本机装了 OpenMotion / imageio-ffmpeg 也一样。
 
 ### 修复（出片前置动作）
-1. 确认 `~/.yidehai-video/bin/` 下有 `ffmpeg.exe`。
+1. 确认项目 `.yidehai/bin/` 下有 `ffmpeg.exe`（`media_manager` 亦会兼容回落查找旧版 `~/.yidehai-video/bin/`）。
 2. **关键**：`ffprobe` 若是无扩展名的 bash shim（内容 `#!/usr/bin/env bash` + 调 `ffprobe_shim.py`），Windows 下 Python subprocess **无法直接执行无扩展名脚本**，会导致 `ffprobe_duration()` 抛 FileNotFoundError → 背景探测失败 → 全部回退纯色 `solid-fallback`。必须从本机 OpenMotion 缓存复制真正的 `ffprobe.exe` 到该目录：
    ```sh
-   cp "<OM_HOME>/cache/native/win-x64/media-*/ffmpeg-*/bin/ffprobe.exe" ~/.yidehai-video/bin/ffprobe.exe
+   cp "<OM_HOME>/cache/native/win-x64/media-*/ffmpeg-*/bin/ffprobe.exe" .yidehai/bin/ffprobe.exe
    ```
 3. 每次批量出片命令前（若脚本未自动命中）可显式导出 PATH：
-   - Git Bash / macOS：`export PATH="$HOME/.yidehai-video/bin:$PATH"`
-   - Windows PowerShell：`$env:Path = "$env:USERPROFILE\.yidehai-video\bin;$env:Path"`
+   - Git Bash / macOS：`export PATH="$PWD/.yidehai/bin:$PATH"`
+   - Windows PowerShell：`$env:Path = "$PWD\.yidehai\bin;$env:Path"`
 4. 自检：`ffprobe_duration(bg_full.mp4)` 能返回约 29.0 的浮点数即正常；若抛 FileNotFoundError，先别渲染。
 
 ---
@@ -32,7 +32,7 @@
 10 条成片技术上是 10 个不同时间窗、背景 10/10 去重，但用户审片后反馈"背景图片都一样"。核查发现：`forest_seg_a~g` 全是从**同一个 `bg_full.mp4`（同一片树林仰拍）**切出的片段——字节不同、画面几乎一样。
 
 ### 根因
-`render_poster.py` 的 `pick_unique_bg_segment()` 按 `window_step = ceil(duration + 0.5)` ≈ 10 秒切窗。单个 29 秒视频只能出 3 个窗口；凑不够 N 条时会静默回退纯色，或（若手动切片段）退化为同片不同时间窗。**skill 的 `knowledge/media-catalog.json` 中 `bg_videos: []` 至今为空**，官方未内置任何风景空镜源；缺 Pexels/Pixabay Key 时无真实多样素材可用。
+`render_poster.py` 的 `pick_unique_bg_segment()` 按 `window_step = ceil(duration + 0.5)` ≈ 10 秒切窗。单个 29 秒视频只能出 3 个窗口；凑不够 N 条时会静默回退纯色，或（若手动切片段）退化为同片不同时间窗。**本项目的 `knowledge/media-catalog.json` 中 `bg_videos: []` 至今为空**，官方未内置任何风景空镜源；缺 Pexels/Pixabay Key 时无真实多样素材可用。
 
 ### 判定与修复
 - **症结不在"是否视频"**：成片是 h264 视频流 + 文字层 overlay，背景真实在流动（抽首尾帧背景区像素差 > 20）。观感像图片是因为审片台 `review.html` 用静态封面 `cover-9x16.jpg` 做 video poster，且封面都截自同一片树林。
@@ -77,7 +77,7 @@
 
 ## 五、交付前自检清单（大字报批量）
 
-- [ ] 出片前 `export PATH` 含 `~/.yidehai-video/bin`，且该目录有真 `ffmpeg.exe` + `ffprobe.exe`；
+- [ ] 出片前 `export PATH` 含 `.yidehai/bin`（或系统已装），且该目录有真 `ffmpeg.exe` + `ffprobe.exe`；
 - [ ] 素材池有 ≥ N 个**不同场景**视频（不是同一条切 N 段）；不足先配 Pexels/Pixabay Key 补素材，查询间隔 ≥ 8 秒防 403，优先下 720p 小文件加速；
 - [ ] 新素材放独立目录并用 `--bg-dir` 指向，避免旧素材（bg_full / forest_seg_*）混入；
 - [ ] 补素材后清空 `used_bg_segments` 账本再渲染；

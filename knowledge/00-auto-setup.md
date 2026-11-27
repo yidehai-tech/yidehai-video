@@ -2,7 +2,7 @@
 
 > 核心原则：
 > 1. **绝不让非技术同事手动配环境**；
-> 2. **安装一体化，绝不二次确认**：当成员说“安装 `yidehai-video`”时，请一次性连续完成：① 克隆/下载到独立持久目录（推荐 `~/.yidehai-video/skill-repo`，勿放单一宿主私有目录内）；② 运行 `python3 scripts/link_skill.py`（该脚本会自动同时完成跨宿主安全挂载 + 必备免费基础依赖 `ffmpeg`/`ffprobe`、`edge-tts`、`Pillow` 的一键安装与自检；Windows 默认安全镜像复制，防宿主清理穿透误删真源）。**不要装完文件就停下来问“要不要装 FFmpeg / edge-tts”**，也不要在安装阶段追问本地素材路径（留到真正出片前的 `preflight` 门禁统一校验）；
+> 2. **初始化与旧版迁移一体化，绝不二次确认**：当成员首次打开本项目或说“初始化项目 / 迁移旧配置”时，请一次性连续运行 `python3 scripts/setup_project.py`（若是从旧版全局 Skill 升级并希望顺手清理旧全局挂载，加 `--cleanup-legacy-skills`）。该脚本会自动同时完成：① 将旧版 `~/.yidehai-video/` 配置、API Key、防重账本、任务台账、缓存与 Windows FFmpeg 无损迁入 `.yidehai/`（原目录保留作备份）；② 刷新 `outputs/dashboard.html`；③ 补齐必备免费基础依赖 `ffmpeg`/`ffprobe`、`edge-tts`、`Pillow`。**不要初始化完就停下来问“要不要装 FFmpeg / edge-tts”**，也不要在初始化阶段追问本地素材路径（留到真正出片前的 `preflight` 门禁统一校验）；
 > 3. **绝不让 OpenMotion 安装成为阻塞项**（严禁反复 `git clone` 源码仓库或长时间死等；最多尝试 1 次国内镜像 npm 稳定版安装，失败立刻降级继续交付）。
 
 ---
@@ -13,7 +13,7 @@
 
 ### 1. 先静默检测（已装则秒过）
 先检查当前 Agent 是否已连接 `openmotion` MCP 或本机已有 `@openmotion/app`：
-- **已连接 / 已可用**：日常出片直接复用，**不要重复安装**（仅在成员明确说「更新 skill / 升级工具」时执行下方第四节的联动升级）。
+- **已连接 / 已可用**：日常出片直接复用，**不要重复安装**（仅在成员明确说「更新项目 / 升级工具」时执行下方第六节的联动升级）。
 - **未安装**：先检查 Node.js 版本：
   ```sh
   node -v
@@ -120,16 +120,16 @@
 
 ---
 
-## 六、Skill 更新时自动联动升级依赖（版本同步机制）
+## 六、项目更新时自动联动升级依赖（版本同步机制）
 
 当成员说 **「更新一下 `yidehai-video`」** / **「同步最新视频助手」** 时，按以下 4 步一站式升级（同样遵循非阻塞原则，单步失败不阻断整体）：
 
-1. **拉取最新版 Skill 与知识库并同步全宿主**：
-   - 在独立持久化真源目录（如 `~/.yidehai-video/skill-repo`）从 `https://github.com/yidehai-tech/yidehai-video` 拉取最新代码；
-   - 顺手运行一次 `python3 scripts/link_skill.py`（若当前宿主有私有 `.skills` 目录则附带 `--extra-skills-dir`），Windows 下会自动将最新版安全镜像覆盖同步到所有宿主目录。
+1. **拉取最新版项目脚本与知识库**：
+   - 在当前项目根目录执行 `git pull` 从 `https://github.com/yidehai-tech/yidehai-video` 拉取最新代码；
+   - 顺手运行一次 `python3 scripts/setup_project.py`（自动补齐新增依赖，并确保 `.yidehai/` 与 `outputs/dashboard.html` 状态最新）。
 2. **联动升级 OpenMotion（已装时检查）**：
    - 若本机已是最新版，**直接跳过，不要为「升级」重跑 setup**——重装可能覆盖已手动补齐的 native 组件；仅在需要升级时走国内镜像执行 `@openmotion/app@latest setup --host <HOST>` 并做导出自检。
 3. **联动升级 HeyGen HyperFrames 与已装可选插件**：
    - 若本机已安装 `hyperframes`，顺手走国内镜像升级：`npm_config_registry=https://registry.npmmirror.com npm install -g hyperframes`；
    - 若本机已安装 `edge-tts`，顺手走清华镜像升级：`python3 -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -U edge-tts`（未装过则跳过）。
-4. **简明汇报结果**：用 2–3 行告诉同事：① Skill 已更新到的版本号；② 依赖工具是否已是最新（若有失败项一句带过，不影响继续出片）。
+4. **简明汇报结果**：用 2–3 行告诉同事：① 项目已更新到的版本；② 依赖工具是否已是最新（若有失败项一句带过，不影响继续出片）。

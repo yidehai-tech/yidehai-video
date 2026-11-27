@@ -1,0 +1,28 @@
+{
+  "_notes": {
+    "usage": "本文件仅为配置结构示例。实际运行时配置会自动生成并保存在 .yidehai/config.json（已加入 .gitignore，绝不提交进 Git）。",
+    "migration": "如果你此前使用过 v2.x 全局 Skill（~/.yidehai-video/），首次运行 setup_project.py 或任意出片命令会自动将旧配置与防重记录无损迁入 .yidehai/。",
+    "secrets": "请勿在本示例文件或任何提交到 Git 的文件中填写真实 API Key。"
+  },
+  "local_bg_dirs": [],
+  "local_bgm_dirs": [],
+  "local_footage_dirs": [],
+  "local_motion_templates_dir": "",
+  "ledger_path": ".yidehai/used_history.json",
+  "cache_bg_dir": ".yidehai/cache/bg",
+  "cache_bgm_dir": ".yidehai/cache/bgm",
+  "cache_img_dir": ".yidehai/cache/images",
+  "bg_source": "both",
+  "default_image_source": "",
+  "default_video_source": "",
+  "pexels_api_key": "",
+  "pixabay_api_key": "",
+  "jamendo_client_id": "",
+  "video_api_base_url": "",
+  "video_api_key": "",
+  "video_api_user_id": "",
+  "video_api_default_model": "gemini-omni-1.2-flash",
+  "image_api_default_model": "gemini-3.1-flash-lite-image",
+  "initialized": false,
+  "onboarding_dismissed": false
+}

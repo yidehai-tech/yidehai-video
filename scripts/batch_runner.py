@@ -20,7 +20,8 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-SKILL_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+SKILL_ROOT = PROJECT_ROOT
 SCRIPTS_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPTS_DIR))
 import media_manager

@@ -6,7 +6,7 @@
 
 ## 一、先做「选题 → 档位 → 人物/场景」匹配（绝不盲目花点）
 
-调用即梦或 Google Flow 前，**必须先结合 `knowledge/03-copy-formula.md` 的四维选题矩阵（人群 × 场景 × 品类 × 切角）与 `~/.yidehai-video/used_history.json` 完成选题匹配**，做到「选题决定档位，档位决定字数，场景决定人物与道具」，且相邻视频主动轮换人物与场景，避免画面雷同：
+调用即梦或 Google Flow 前，**必须先结合 `knowledge/03-copy-formula.md` 的四维选题矩阵（人群 × 场景 × 品类 × 切角）与 `.yidehai/used_history.json` 完成选题匹配**，做到「选题决定档位，档位决定字数，场景决定人物与道具」，且相邻视频主动轮换人物与场景，避免画面雷同：
 
 ### 1. 选题类型 → 最佳档位与时长匹配表
 
@@ -155,7 +155,7 @@
 
 ### 1. 一次配置（零硬编码密钥 + 后台分组额度护栏）
 1. **财务安全建议（防 6x/11x 溢价避坑铁律）**：在聚合 API 控制台单独新建一个「专用限额令牌」并设置明确金额上限（严禁勾选「无限额度」）。更重要的是：**严禁勾选“全选所有分组”！** 不同分组倍率差异极大，只保留 `0.7x–1.9x` 低倍分组（如 `flux生图`、`特价banana`、`gemini-cli`、`default默认`、`国内模型1`、`sd2.0`），并**彻底剔除 `优质*` / `官转*` / `直连*`（`2.4x–16x`）高倍分组**，防止单次调用被静默按 `6x`/`11x` 倍率放大扣费；
-2. 将网关根地址（例如 `https://api.tiantoken.com`）与令牌写入本机 `~/.yidehai-video/config.json`（也可通过环境变量 `YIDEHAI_VIDEO_API_BASE_URL` / `YIDEHAI_VIDEO_API_KEY` 传入）：
+2. 将网关根地址（例如 `https://api.tiantoken.com`）与令牌写入项目 `.yidehai/config.json`（也可通过环境变量 `YIDEHAI_VIDEO_API_BASE_URL` / `YIDEHAI_VIDEO_API_KEY` 传入）：
    ```sh
    python3 scripts/media_manager.py config --set-video-api-url "https://api.tiantoken.com" --set-video-api-key "<YOUR_LIMIT_TOKEN>"
    # 可选：若需 check 时顺带查令牌余额，可再配 New-Api-User ID

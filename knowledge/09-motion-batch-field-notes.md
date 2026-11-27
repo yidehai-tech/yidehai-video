@@ -80,7 +80,7 @@ asyncio.run(edge_tts.Communicate(text, "zh-CN-XiaoxiaoNeural", rate="+10%").save
 
 ### 3.2 真实无版权 BGM
 
-音源优先级：`~/.yidehai-video/cache/bgm/` 已缓存真实无版权音源 → 在线免版权源（如 `media-catalog.json` / Jamendo）→ `config.json` 免版权目录。
+音源优先级：`.yidehai/cache/bgm/` 已缓存真实无版权音源 → 在线免版权源（如 `media-catalog.json` / Jamendo）→ `.yidehai/config.json` 免版权目录。
 > 若选用 Jamendo CC Standard 等附带署名要求的曲目，**务必在发布文案与交接备注中保留作者/曲目署名**。
 
 ```sh

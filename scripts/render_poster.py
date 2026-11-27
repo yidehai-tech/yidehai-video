@@ -713,7 +713,7 @@ def main() -> None:
     parser.add_argument("--job", required=True, help="大字报配置 JSON 路径")
     parser.add_argument("--bg", help="指定单个背景空镜视频路径")
     parser.add_argument("--bg-start", type=float, default=0.0, help="与 --bg 配合指定背景起始秒")
-    parser.add_argument("--bg-dir", help="背景空镜素材池目录（不传则自动读取 ~/.yidehai-video/config.json 记住的目录 + 在线缓存）")
+    parser.add_argument("--bg-dir", help="背景空镜素材池目录（不传则自动读取 .yidehai/config.json 记住的目录 + 在线缓存）")
     parser.add_argument("--bg-source", choices=["both", "local", "online"], help="背景来源：both(本地+在线混合) / local / online")
     parser.add_argument("--bgm", help="指定背景音乐文件（支持 mp3/m4a/wav 或带音轨的 mp4）")
     parser.add_argument("--bgm-dir", help="BGM 素材池目录（不传则自动读取本机记忆目录 + 在线缓存）")
@@ -721,7 +721,7 @@ def main() -> None:
     parser.add_argument("--silent", action="store_true", help="显式导出无声版（不加任何背景音乐；未传此参数时缺音乐将硬拦截）")
     parser.add_argument("--allow-solid-fallback", action="store_true", help="仅限调试：允许无背景视频时回落纯色底（生产出片严禁开启）")
     parser.add_argument("--ambient-fallback", action="store_true", help="无真实 BGM 时使用内置合成和弦兜底（默认关闭，缺真实 BGM 时硬拦截）")
-    parser.add_argument("--ledger", help="防重账本 JSON 路径（默认使用全局 ~/.yidehai-video/used_history.json）")
+    parser.add_argument("--ledger", help="防重账本 JSON 路径（默认使用项目 .yidehai/used_history.json）")
     parser.add_argument("--out-dir", required=True, help="输出目录")
     parser.add_argument("--organize-by-date", action="store_true", help="自动按 YYYY-MM-DD/YYYYMMDD-HHMMSS-大字报-slug 归档子目录")
     parser.add_argument("--force", action="store_true", help="强制覆盖同文案查重限制")
@@ -744,7 +744,7 @@ def main() -> None:
     if theme_key not in THEMES:
         raise ValueError(f"未知主题 {theme_key}，可选：{list(THEMES.keys())}")
 
-    # 1. 文案防重校验（默认使用全局账本 ~/.yidehai-video/used_history.json）
+    # 1. 文案防重校验（默认使用项目账本 .yidehai/used_history.json）
     ledger_path = Path(args.ledger or cfg["ledger_path"])
     ledger = load_ledger(ledger_path)
     copy_hash = hashlib.sha256((title + "\n" + "\n".join(body_lines)).encode("utf-8")).hexdigest()[:16]

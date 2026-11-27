@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """
-亿德海团队短视频本地配置与在线免版权素材按需管理器（纯标准库，跨平台 macOS / Windows）
-- 持久化保存同事本机素材目录与防重账本路径到 ~/.yidehai-video/config.json（绝不提交进 Git）
-- 支持双模式在线按需拉取空镜/轻音乐到 ~/.yidehai-video/cache/：
+亿德海团队短视频项目级本地配置与在线免版权素材按需管理器（纯标准库，跨平台 macOS / Windows）
+- 持久化保存本机素材目录、API Key 与防重账本到项目目录 .yidehai/config.json（绝不提交进 Git）
+- 首次使用时自动、无损、幂等地从旧版全局 ~/.yidehai-video/ 平滑迁移配置、防重账本、任务台账、缓存与 FFmpeg
+- 支持双模式在线按需拉取空镜/轻音乐到 .yidehai/cache/：
   1) 0 配置直链清单模式（读取 knowledge/media-catalog.json 中的精选免版权或团队共享直链，按需下载）
   2) 可选免费 API 无限扩充模式（配置 Pexels / Pixabay 免费 API Key 后自动按竖屏风景关键词补库）
 """
 
 import argparse
 import contextlib
+import datetime
 import hashlib
 import json
 import os
@@ -128,12 +130,28 @@ def file_lock(lock_path: Path, timeout: float = 15.0, stale_seconds: float = 600
     finally:
         lock_path.unlink(missing_ok=True)
 
-APP_DIR = Path.home() / ".yidehai-video"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+SKILL_ROOT = PROJECT_ROOT  # 兼容旧脚本引用别名
+
+_env_legacy_dir = os.environ.get("YIDEHAI_LEGACY_DIR", "").strip()
+_env_data_dir = os.environ.get("YIDEHAI_DATA_DIR", "").strip()
+_env_outputs_dir = os.environ.get("YIDEHAI_OUTPUTS_DIR", "").strip()
+
+LEGACY_APP_DIR = Path(_env_legacy_dir).expanduser() if _env_legacy_dir else (Path.home() / ".yidehai-video")
+APP_DIR = Path(_env_data_dir).expanduser() if _env_data_dir else (PROJECT_ROOT / ".yidehai")
+OUTPUTS_DIR = (
+    Path(_env_outputs_dir).expanduser()
+    if _env_outputs_dir
+    else ((APP_DIR / "outputs") if _env_data_dir else (PROJECT_ROOT / "outputs"))
+)
+
 CONFIG_PATH = APP_DIR / "config.json"
 DEFAULT_LEDGER_PATH = APP_DIR / "used_history.json"
 CACHE_BG_DIR = APP_DIR / "cache" / "bg"
 CACHE_BGM_DIR = APP_DIR / "cache" / "bgm"
 CACHE_IMG_DIR = APP_DIR / "cache" / "images"
+MIGRATION_RECEIPT_PATH = APP_DIR / "migration.json"
+DASHBOARD_PATH = OUTPUTS_DIR / "dashboard.html"
 
 DEFAULT_SCENIC_QUERIES = [
     "nature forest sunlight",
@@ -144,8 +162,9 @@ DEFAULT_SCENIC_QUERIES = [
     "meadow sunrise nature",
 ]
 
-SKILL_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_CATALOG_PATH = SKILL_ROOT / "knowledge" / "media-catalog.json"
+DEFAULT_CATALOG_PATH = PROJECT_ROOT / "knowledge" / "media-catalog.json"
+
+_MIGRATION_CHECKED = False
 
 
 def resolve_ffmpeg_tools() -> tuple[str, str]:
@@ -154,7 +173,7 @@ def resolve_ffmpeg_tools() -> tuple[str, str]:
     ff_name = "ffmpeg.exe" if is_win else "ffmpeg"
     fp_name = "ffprobe.exe" if is_win else "ffprobe"
 
-    search_dirs: list[Path] = [APP_DIR / "bin"]
+    search_dirs: list[Path] = [APP_DIR / "bin", LEGACY_APP_DIR / "bin"]
     om_roots: list[Path] = []
     if os.environ.get("OPENMOTION_HOME"):
         om_roots.append(Path(os.environ["OPENMOTION_HOME"]))
@@ -194,7 +213,289 @@ def normalize_video_api_base_url(url: str) -> str:
     return s
 
 
+def _is_under_dir(path_str: str, base_dir: Path) -> bool:
+    """判断路径字符串是否为空或位于指定旧版目录之下（兼容跨平台路径写法）。"""
+    raw = str(path_str or "").strip()
+    if not raw:
+        return True
+    norm = raw.replace("\\", "/")
+    if "/.yidehai-video/" in norm or norm.endswith("/.yidehai-video"):
+        return True
+    try:
+        cand = Path(raw).expanduser().resolve()
+        base = base_dir.expanduser().resolve()
+        return cand == base or base in cand.parents
+    except Exception:
+        return False
+
+
+def _rewrite_legacy_internal_paths(data: dict) -> list[str]:
+    """将指向旧版 ~/.yidehai-video/ 内部的默认路径字段重写为项目内 .yidehai/ 路径，保留自定义外部路径。"""
+    targets = {
+        "ledger_path": str(DEFAULT_LEDGER_PATH),
+        "cache_bg_dir": str(CACHE_BG_DIR),
+        "cache_bgm_dir": str(CACHE_BGM_DIR),
+        "cache_img_dir": str(CACHE_IMG_DIR),
+    }
+    rewritten: list[str] = []
+    for key, new_val in targets.items():
+        old_val = str(data.get(key) or "").strip()
+        if _is_under_dir(old_val, LEGACY_APP_DIR):
+            if old_val != new_val:
+                data[key] = new_val
+                rewritten.append(key)
+    return rewritten
+
+
+def _atomic_copy_file(src: Path, dst: Path) -> None:
+    """跨平台原子复制文件（不修改源文件）。"""
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(prefix=f".{dst.name}.", suffix=".tmp", dir=str(dst.parent))
+    os.close(fd)
+    tmp_path = Path(tmp_name)
+    try:
+        shutil.copy2(src, tmp_path)
+        os.replace(tmp_path, dst)
+    except Exception:
+        tmp_path.unlink(missing_ok=True)
+        raise
+
+
+def _iter_migratable_files(root: Path, skip_names: set[str] | None = None) -> list[Path]:
+    if not root.is_dir():
+        return []
+    skip = skip_names or {".DS_Store", "Thumbs.db"}
+    files: list[Path] = []
+    for p in root.rglob("*"):
+        if p.is_file() and p.name not in skip and not p.name.endswith((".part", ".tmp")):
+            files.append(p)
+    return files
+
+
+def migrate_legacy_state(force_merge: bool = False, dry_run: bool = False) -> dict:
+    """
+    从旧版全局目录（默认 ~/.yidehai-video/）无损、幂等地迁移配置、账本、缓存与二进制工具到项目 .yidehai/。
+    绝不删除、改写或打印旧目录中的任何敏感凭据明文。
+    """
+    global _MIGRATION_CHECKED
+    try:
+        same_dir = APP_DIR.expanduser().resolve() == LEGACY_APP_DIR.expanduser().resolve()
+    except Exception:
+        same_dir = False
+
+    if same_dir or not LEGACY_APP_DIR.exists():
+        _MIGRATION_CHECKED = True
+        return {
+            "ok": True,
+            "status": "no_legacy_dir",
+            "source_dir": str(LEGACY_APP_DIR),
+            "target_dir": str(APP_DIR),
+            "migrated": [],
+            "rewritten_config_paths": [],
+            "legacy_preserved": True,
+        }
+
+    if MIGRATION_RECEIPT_PATH.exists() and not force_merge:
+        _MIGRATION_CHECKED = True
+        return {
+            "ok": True,
+            "status": "already_migrated",
+            "source_dir": str(LEGACY_APP_DIR),
+            "target_dir": str(APP_DIR),
+            "receipt_path": str(MIGRATION_RECEIPT_PATH),
+            "migrated": [],
+            "rewritten_config_paths": [],
+            "legacy_preserved": True,
+        }
+
+    legacy_cfg_path = LEGACY_APP_DIR / "config.json"
+    legacy_ledger_path = LEGACY_APP_DIR / "used_history.json"
+    legacy_tasks_path = LEGACY_APP_DIR / "tasks.json"
+    legacy_cache_files = _iter_migratable_files(LEGACY_APP_DIR / "cache")
+    legacy_bin_files = _iter_migratable_files(LEGACY_APP_DIR / "bin")
+
+    has_any = (
+        legacy_cfg_path.is_file()
+        or legacy_ledger_path.is_file()
+        or legacy_tasks_path.is_file()
+        or bool(legacy_cache_files)
+        or bool(legacy_bin_files)
+    )
+    if not has_any:
+        _MIGRATION_CHECKED = True
+        return {
+            "ok": True,
+            "status": "nothing_to_migrate",
+            "source_dir": str(LEGACY_APP_DIR),
+            "target_dir": str(APP_DIR),
+            "migrated": [],
+            "rewritten_config_paths": [],
+            "legacy_preserved": True,
+        }
+
+    def _run_migration_steps() -> dict:
+        migrated_items: list[str] = []
+        rewritten_paths: list[str] = []
+
+        # 1) config.json
+        if legacy_cfg_path.is_file():
+            try:
+                legacy_cfg = json.loads(legacy_cfg_path.read_text(encoding="utf-8"))
+                if not isinstance(legacy_cfg, dict):
+                    legacy_cfg = {}
+            except Exception:
+                legacy_cfg = {}
+
+            if not CONFIG_PATH.exists():
+                new_cfg = dict(legacy_cfg)
+                rewritten_paths = _rewrite_legacy_internal_paths(new_cfg)
+                if not dry_run:
+                    atomic_write_json(CONFIG_PATH, new_cfg)
+                    try:
+                        os.chmod(CONFIG_PATH, stat.S_IRUSR | stat.S_IWUSR)
+                    except Exception:
+                        pass
+                migrated_items.append("config.json")
+            elif force_merge:
+                try:
+                    proj_cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+                    if not isinstance(proj_cfg, dict):
+                        proj_cfg = {}
+                except Exception:
+                    proj_cfg = {}
+                merged_changed = False
+                scalar_keys = (
+                    "pexels_api_key", "pixabay_api_key", "jamendo_client_id",
+                    "video_api_base_url", "video_api_key", "video_api_user_id",
+                    "video_api_default_model", "image_api_default_model",
+                    "local_motion_templates_dir", "default_image_source",
+                    "default_video_source", "bg_source",
+                    "initialized", "onboarding_dismissed",
+                )
+                for sk in scalar_keys:
+                    if not proj_cfg.get(sk) and legacy_cfg.get(sk):
+                        proj_cfg[sk] = legacy_cfg[sk]
+                        merged_changed = True
+                for lk in ("local_bg_dirs", "local_bgm_dirs", "local_footage_dirs"):
+                    cur_list = list(proj_cfg.get(lk) or [])
+                    for item in (legacy_cfg.get(lk) or []):
+                        if item and item not in cur_list:
+                            cur_list.append(item)
+                            merged_changed = True
+                    if cur_list or lk in proj_cfg:
+                        proj_cfg[lk] = cur_list
+                rewritten_paths = _rewrite_legacy_internal_paths(proj_cfg)
+                if rewritten_paths:
+                    merged_changed = True
+                if merged_changed:
+                    if not dry_run:
+                        atomic_write_json(CONFIG_PATH, proj_cfg)
+                        try:
+                            os.chmod(CONFIG_PATH, stat.S_IRUSR | stat.S_IWUSR)
+                        except Exception:
+                            pass
+                    migrated_items.append("config.json(merged)")
+
+        # 2) used_history.json
+        if legacy_ledger_path.is_file() and not DEFAULT_LEDGER_PATH.exists():
+            if not dry_run:
+                _atomic_copy_file(legacy_ledger_path, DEFAULT_LEDGER_PATH)
+            migrated_items.append("used_history.json")
+
+        # 3) tasks.json
+        target_tasks_path = APP_DIR / "tasks.json"
+        if legacy_tasks_path.is_file() and not target_tasks_path.exists():
+            if not dry_run:
+                _atomic_copy_file(legacy_tasks_path, target_tasks_path)
+            migrated_items.append("tasks.json")
+
+        # 4) cache/
+        cache_copied = 0
+        legacy_cache_root = LEGACY_APP_DIR / "cache"
+        for src in legacy_cache_files:
+            rel = src.relative_to(legacy_cache_root)
+            dst = APP_DIR / "cache" / rel
+            if not dst.exists():
+                if not dry_run:
+                    _atomic_copy_file(src, dst)
+                cache_copied += 1
+        if cache_copied:
+            migrated_items.append(f"cache({cache_copied} files)")
+
+        # 5) bin/
+        bin_copied = 0
+        legacy_bin_root = LEGACY_APP_DIR / "bin"
+        for src in legacy_bin_files:
+            rel = src.relative_to(legacy_bin_root)
+            dst = APP_DIR / "bin" / rel
+            if not dst.exists():
+                if not dry_run:
+                    _atomic_copy_file(src, dst)
+                bin_copied += 1
+        if bin_copied:
+            migrated_items.append(f"bin({bin_copied} files)")
+
+        receipt = {
+            "schema_version": "1.0",
+            "migrated_at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
+            "source_dir": str(LEGACY_APP_DIR),
+            "target_dir": str(APP_DIR),
+            "migrated_items": migrated_items,
+            "rewritten_config_paths": rewritten_paths,
+            "legacy_preserved": True,
+        }
+        if not dry_run:
+            atomic_write_json(MIGRATION_RECEIPT_PATH, receipt)
+
+        return {
+            "ok": True,
+            "status": ("would_migrate" if dry_run else ("migrated" if migrated_items else "up_to_date")),
+            "source_dir": str(LEGACY_APP_DIR),
+            "target_dir": str(APP_DIR),
+            "receipt_path": str(MIGRATION_RECEIPT_PATH),
+            "migrated": migrated_items,
+            "rewritten_config_paths": rewritten_paths,
+            "legacy_preserved": True,
+        }
+
+    if dry_run:
+        return _run_migration_steps()
+
+    with file_lock(APP_DIR / ".migrate.lock", timeout=15.0):
+        # 锁内二次确认幂等
+        if MIGRATION_RECEIPT_PATH.exists() and not force_merge:
+            _MIGRATION_CHECKED = True
+            return {
+                "ok": True,
+                "status": "already_migrated",
+                "source_dir": str(LEGACY_APP_DIR),
+                "target_dir": str(APP_DIR),
+                "receipt_path": str(MIGRATION_RECEIPT_PATH),
+                "migrated": [],
+                "rewritten_config_paths": [],
+                "legacy_preserved": True,
+            }
+        res = _run_migration_steps()
+        _MIGRATION_CHECKED = True
+        return res
+
+
+def ensure_migrated() -> dict | None:
+    """在首次读取项目配置或台账时静默执行一次性旧版数据迁移，异常不阻断主流程。"""
+    global _MIGRATION_CHECKED
+    if _MIGRATION_CHECKED:
+        return None
+    if MIGRATION_RECEIPT_PATH.exists():
+        _MIGRATION_CHECKED = True
+        return None
+    try:
+        return migrate_legacy_state(force_merge=False, dry_run=False)
+    except Exception:
+        return None
+
+
 def load_config() -> dict:
+    ensure_migrated()
     if CONFIG_PATH.exists():
         try:
             data = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
@@ -224,8 +525,7 @@ def load_config() -> dict:
 
 
 def save_config(data: dict) -> None:
-    APP_DIR.mkdir(parents=True, exist_ok=True)
-    CONFIG_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    atomic_write_json(CONFIG_PATH, data)
     try:
         os.chmod(CONFIG_PATH, stat.S_IRUSR | stat.S_IWUSR)
     except Exception:
@@ -567,7 +867,7 @@ def run_preflight(track: str, silent: bool = False, cfg: dict | None = None, pro
             missing.append({
                 "item": "bg_video_source",
                 "label": "大字报风景空镜背景源（必配，二选一）",
-                "reason": "为避免团队撞画面，本 Skill 不预置公用风景视频；未配置时严禁回落纯色底敷衍出片。",
+                "reason": "为避免团队撞画面，本项目不预置公用风景视频；未配置时严禁回落纯色底敷衍出片。",
                 "how_to_fix": [
                     "方式 A（推荐，免费 API 自动不重样拉取）：配置 Pexels 或 Pixabay 免费 API Key：python3 scripts/media_manager.py config --set-pexels-key \"<KEY>\" 或 --set-pixabay-key \"<KEY>\"",
                     "方式 B（本地素材）：指定本地风景空镜文件夹：python3 scripts/media_manager.py config --add-bg-dir \"<本地空镜目录>\"",
@@ -686,7 +986,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="亿德海本地素材路径记忆与在线空镜/BGM 按需拉取工具")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
-    p_cfg = sub.add_parser("config", help="查看或保存本机素材目录/偏好（写入 ~/.yidehai-video/config.json）")
+    p_cfg = sub.add_parser("config", help="查看或保存本机素材目录/偏好（写入项目 .yidehai/config.json）")
     p_cfg.add_argument("--show", action="store_true", help="查看当前配置（不回显密钥明文）")
     p_cfg.add_argument("--add-bg-dir", help="添加本地【干净风景空镜】目录（仅大字报背景用，严禁把杂乱客户衣物实拍目录填进这里）")
     p_cfg.add_argument("--add-footage-dir", help="添加本地【业务实拍素材】目录（衣物/打包视频与客户照片，专供实拍混剪/图文故事片/省点混剪防重使用）")
@@ -722,7 +1022,16 @@ def main() -> None:
     p_pre.add_argument("--silent", action="store_true", help="显式声明本次出无声版（跳过 BGM 强制校验）")
     p_pre.add_argument("--no-online-probe", action="store_true", help="仅检查本机配置与缓存，不触发在线 BGM 探测下载")
 
+    p_mig = sub.add_parser("migrate", help="将旧版全局 ~/.yidehai-video/ 配置、账本与缓存无损迁移到当前项目 .yidehai/")
+    p_mig.add_argument("--dry-run", action="store_true", help="仅预览将要迁移的项目与重写路径，不实际修改文件系统")
+    p_mig.add_argument("--merge", action="store_true", help="即使项目已存在部分配置，也无损合并旧版遗漏的配置项与目录")
+
     args = parser.parse_args()
+    if args.cmd == "migrate":
+        res = migrate_legacy_state(force_merge=args.merge, dry_run=args.dry_run)
+        print(json.dumps(res, ensure_ascii=False, indent=2))
+        return
+
     cfg = load_config()
 
     if args.cmd == "config":
@@ -801,7 +1110,10 @@ def main() -> None:
         safe_view["has_pixabay_key"] = bool(cfg.get("pixabay_api_key"))
         safe_view["has_jamendo_id"] = bool(cfg.get("jamendo_client_id"))
         safe_view["has_video_api_key"] = bool(cfg.get("video_api_key"))
+        safe_view["project_root"] = str(PROJECT_ROOT)
+        safe_view["data_dir"] = str(APP_DIR)
         safe_view["config_path"] = str(CONFIG_PATH)
+        safe_view["migrated_from_legacy"] = MIGRATION_RECEIPT_PATH.exists()
         print(json.dumps(safe_view, ensure_ascii=False, indent=2))
 
     elif args.cmd == "fetch":

@@ -2,9 +2,9 @@
 """
 亿德海跨 Agent 共用任务台账与本地静态仪表盘（纯标准库，零外部依赖，零后台服务）
 
-单一事实源（固定位于 ~/.yidehai-video/，与 config.json / used_history.json 同级）：
-  - ~/.yidehai-video/tasks.json       : 全 11 大轨道任务生命周期台账（带跨进程文件锁 + 原子写入）
-  - ~/.yidehai-video/dashboard.html   : 自动刷新的纯离线可视化仪表盘（双击浏览器直接查看，无需起服务）
+单一事实源（项目级本地持久化，跨 Agent 共享）：
+  - .yidehai/tasks.json       : 全 11 大轨道任务生命周期台账（带跨进程文件锁 + 原子写入）
+  - outputs/dashboard.html    : 自动刷新的纯离线可视化仪表盘（可见目录，双击浏览器直接查看，无需起服务）
 
 设计红线：
   1. Best-Effort 非阻塞：出片脚本调用 safe_start_task / safe_finish_task / safe_record_task 时，任何记账异常绝不影响已渲染成片；
@@ -30,7 +30,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 import media_manager  # noqa: E402
 
 TASKS_PATH = media_manager.APP_DIR / "tasks.json"
-DASHBOARD_PATH = media_manager.APP_DIR / "dashboard.html"
+DASHBOARD_PATH = media_manager.DASHBOARD_PATH
 LOCK_PATH = media_manager.APP_DIR / "tasks.lock"
 
 VALID_STATUSES = (
@@ -119,6 +119,7 @@ def _parse_iso(ts: str) -> float:
 
 
 def _load_unlocked() -> dict[str, Any]:
+    media_manager.ensure_migrated()
     if TASKS_PATH.exists():
         try:
             data = json.loads(TASKS_PATH.read_text(encoding="utf-8"))

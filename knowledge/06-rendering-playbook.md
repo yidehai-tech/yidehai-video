@@ -202,7 +202,7 @@ ffmpeg -y -loglevel error -ss <t> -i <out.mp4> -frames:v 1 <check_t.png>
 | lint 报 root 顶层 clip | 未拆子合成 | 拆到 `compositions/*.html` + `data-composition-src` |
 | 渲染日志 GSAP selector 警告 | 选择器/合并 tween 问题 | 抽帧确认动效是否真生效，必要时合并 tween |
 | 工具调用拦 `reg.exe` | 宿主安全策略 | 仅警告，忽略，不要重试 |
-| 更新 skill 后组件又变未就绪 | 重跑 setup 覆盖了缓存/目录 | 已是最新版就直接跳过升级，先做第一节自检 |
+| 更新项目后组件又变未就绪 | 重跑 setup 覆盖了缓存/目录 | 已是最新版就直接跳过升级，先做第一节自检 |
 | 子合成覆盖 CSS 部分规则不生效 | `#main .xxx` 后代选择器跨不过子合成边界（`#main` 在 root 的 `index.html`，子合成元素不在其子树内） | 覆盖规则一律用**纯 class 选择器 + `!important`**；颜色尽量走 `:root` 变量 |
 | 批量动效片整批同色 / 绿得发闷 | 未按题材轮换配色、深森林绿连出 | 按 `09-motion-batch-field-notes.md` 的 5 套浅色主题轮换，相邻主色相不同 |
 | 成片静音被用户打回 | 自写渲染脚本绕开 `batch_runner.py` 的配乐环节 | 复用其 `pick_unique_bgm` + 混音逻辑，默认出有声版；无真实音源才回落无声版并说明 |
