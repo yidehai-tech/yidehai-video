@@ -12,11 +12,12 @@
 - 若 `default_image_source` 为空（尚未设定默认渠道），**必须先用简明 5 选 1 询问成员本条分镜图从哪来**（成员选完可顺手询问是否记住为默认）：
   1. **选项 A · 当前 Agent 内置生图工具**（直接调 WorkBuddy / 豆包 / 千问等自带生图能力 —— 最省事，会消耗当前工具积分）；
   2. **选项 B · 即梦 CLI（`dreamina text2image`）**（走本机已登录即梦账号出图 —— 扣即梦积分，画风极稳）；
-  3. **选项 C · 云端聚合 API 生图（`api_image` · 推荐复用已有 API 余额）**（直接复用本机已配置的 `video_api_base_url` + `video_api_key`，支持 `gemini-3.1-flash-lite-image` / `gemini-2.5-flash-image` / `doubao-seedream-5-5` / `gpt-image-2` 等，单套 4–5 张图成本仅为 AI 视频的约 1/10，且自带已生成图片跳过防重扣费）：
+  3. **选项 C · 云端聚合 API 生图（`api_image` · 推荐复用已有 API 余额）**（直接复用本机已配置的 `video_api_base_url` + `video_api_key`，支持 `gemini-3.1-flash-image-preview` / `doubao-seedream-5-5` / `gpt-image-2` 等，单套 4–5 张图成本仅为 AI 视频的约 1/10，且自带已生成图片跳过防重扣费）：
      ```sh
      python3 scripts/api_image_runner.py check
      python3 scripts/media_manager.py config --set-image-source api_image
      ```
+     > **防 6x 溢价避坑铁律**：在聚合平台建/改令牌时，**严禁勾选“全选所有分组”**，只勾选 `1x` 低倍分组（如 `特价banana`、`gemini-cli`、`flux生图`、`default`）并踢掉 `优质*` / `官转*` / `直连*`（`2.4x–11x`），否则同一模型单张可能被按 `6x` 倍率放大扣费。
   4. **选项 D · 免费外部图库 API（0 积分）**（走本机已配的 Pexels / Pixabay 免费 API 拉取真实生活家居图：`python3 scripts/media_manager.py fetch --kind stock_images --count 5 --query "tidy closet folding clothes"`）；
   5. **选项 E · 本地已有图片目录（0 积分）**（直接从成员指定的本地图片目录或 `local_footage_dirs` 抽图：`python3 scripts/media_manager.py footage --kind image --count 5`）。
 

@@ -212,6 +212,7 @@ def load_config() -> dict:
     data.setdefault("cache_img_dir", str(CACHE_IMG_DIR))
     data.setdefault("bg_source", "both")  # both | local | online
     data.setdefault("default_image_source", "")  # "" (ask) | host_tool | dreamina | api_image | free_api | local
+    data.setdefault("default_video_source", "")  # "" (ask) | host_video | dreamina | flow | api_video
     data.setdefault("video_api_base_url", "")
     data.setdefault("video_api_key", "")
     data.setdefault("video_api_user_id", "")
@@ -623,7 +624,14 @@ def run_preflight(track: str, silent: bool = False, cfg: dict | None = None, pro
                 ],
             })
 
-    # 4.5) 云端聚合视频 API 配置校验（API片 必配）
+    # 4.5) 宿主内置生视频（宿主AI片）与云端聚合视频 API 配置校验
+    if track == "host_video":
+        vid_src = (cfg.get("default_video_source") or "").strip()
+        if not vid_src:
+            notes.append(
+                "宿主AI片（host_video）将调用当前 Agent 自带生视频工具，请先确认当前宿主确有原生生视频能力且成员已同意扣取宿主额度（严禁静默扣分）。"
+            )
+
     if track == "api_video":
         if not video_api_base_url or not video_api_key:
             missing.append({
@@ -636,7 +644,7 @@ def run_preflight(track: str, silent: bool = False, cfg: dict | None = None, pro
             })
 
     # 5) 背景音乐校验（所有非 --silent 轨道必配，严禁悄悄产出无声半成品）
-    if not silent and track in {"poster", "motion", "montage", "fastcut", "before_after", "storybook", "dreamina", "flow", "api_video"}:
+    if not silent and track in {"poster", "motion", "montage", "fastcut", "before_after", "storybook", "host_video", "dreamina", "flow", "api_video"}:
         bgm_ready = has_bgm_local or has_bgm_cache or has_bgm_api
         if not bgm_ready and probe_online_bgm:
             got = ensure_online_media("bgm_tracks", count=1, cfg=cfg)
@@ -669,6 +677,7 @@ def run_preflight(track: str, silent: bool = False, cfg: dict | None = None, pro
             "has_jamendo_id": bool(jamendo_id),
             "has_video_api_url": bool(video_api_base_url),
             "has_video_api_key": bool(video_api_key),
+            "default_video_source": cfg.get("default_video_source", ""),
         },
     }
 
@@ -685,6 +694,7 @@ def main() -> None:
     p_cfg.add_argument("--set-motion-templates-dir", help="设置本机 MotionGit 免费口播模板目录")
     p_cfg.add_argument("--bg-source", choices=["both", "local", "online"], help="背景来源策略：both(混合) / local / online")
     p_cfg.add_argument("--set-image-source", choices=["ask", "host_tool", "dreamina", "api_image", "free_api", "local"], help="图文故事片默认生图来源（ask=每次询问 / host_tool=宿主内置生图 / dreamina=即梦CLI / api_image=云端聚合API生图 / free_api=免费图库API / local=本地图片）")
+    p_cfg.add_argument("--set-video-source", choices=["ask", "host_video", "dreamina", "flow", "api_video"], help="AI 生视频默认渠道（ask=每次询问 / host_video=当前Agent内置生视频 / dreamina=即梦CLI / flow=Google Flow / api_video=云端聚合API）")
     p_cfg.add_argument("--set-pexels-key", help="保存可选 Pexels 免费 API Key 到本机配置")
     p_cfg.add_argument("--set-pixabay-key", help="保存可选 Pixabay 免费 API Key 到本机配置")
     p_cfg.add_argument("--set-jamendo-id", help="保存可选 Jamendo 免费音乐 Client ID 到本机配置")
@@ -708,7 +718,7 @@ def main() -> None:
     p_foot.add_argument("--exclude-keyword", action="append", default=[], help="可选：路径或文件名需排除的关键词（可重复）")
 
     p_pre = sub.add_parser("preflight", help="生成前硬校验门禁：检查目标轨道所需的视频/图片/音乐/API Key 是否齐备")
-    p_pre.add_argument("--track", choices=["poster", "motion", "montage", "fastcut", "before_after", "storybook", "dreamina", "flow", "api_video", "motiongit"], required=True)
+    p_pre.add_argument("--track", choices=["poster", "motion", "montage", "fastcut", "before_after", "storybook", "host_video", "dreamina", "flow", "api_video", "motiongit"], required=True)
     p_pre.add_argument("--silent", action="store_true", help="显式声明本次出无声版（跳过 BGM 强制校验）")
     p_pre.add_argument("--no-online-probe", action="store_true", help="仅检查本机配置与缓存，不触发在线 BGM 探测下载")
 
@@ -743,6 +753,9 @@ def main() -> None:
             changed = True
         if args.set_image_source:
             cfg["default_image_source"] = "" if args.set_image_source == "ask" else args.set_image_source
+            changed = True
+        if args.set_video_source:
+            cfg["default_video_source"] = "" if args.set_video_source == "ask" else args.set_video_source
             changed = True
         if args.set_pexels_key:
             cfg["pexels_api_key"] = args.set_pexels_key.strip()

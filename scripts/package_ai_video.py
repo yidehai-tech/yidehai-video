@@ -654,6 +654,8 @@ def main() -> None:
         fl = str(job.get("format_label") or "")
         if "图文" in fl:
             raw_track = "storybook"
+        elif "宿主" in fl or "内置" in fl or "host_video" in fl.lower():
+            raw_track = "host_video"
         elif "即梦" in fl or "dreamina" in fl.lower():
             raw_track = "dreamina"
         elif "flow" in fl.lower():

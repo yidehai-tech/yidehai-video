@@ -45,6 +45,31 @@
 
 ---
 
+## 二·续、AI 生视频渠道 4 选 1 与当前 Agent 内置生视频（`宿主AI片` / `host_video`）—— 优先省外部 API 费
+
+当成员要求制作 AI 生视频、且未指定具体引擎时，**先查 `media_manager.py config --show` 中的 `default_video_source`**：若为空，**按以下 4 选 1 请成员确认渠道**（严禁未经确认静默扣宿主积分或外部 API 余额）：
+
+1. **`宿主AI片`（`host_video` · 优先省外部费用）**：调用当前 Agent 自带生视频工具（豆包、WorkBuddy、通义千问、扣子等宿主内置视频生成），优先用掉宿主会员/每日赠送额度，**0 外部 API 余额消耗**；
+2. **`即梦片`（`dreamina` CLI）**：走本机即梦账号积分；
+3. **`Flow片`（Google Flow + `ego-lite`）**：走 Google 账号点数；
+4. **`API片`（`api_video_runner.py`）**：走聚合 API 余额，纯 HTTP 零浏览器直出。
+
+### `宿主AI片`（`host_video`）实操规范与闭环
+
+1. **宿主能力自检（诚实兜底）**：
+   - 先确认当前运行的 Agent 是否真的拥有原生生视频工具；若当前处于纯终端工具（如 Codex、Claude Code，无内置生视频工具），**必须如实告知成员“当前宿主无内置生视频工具”**，建议改用 `api_video` / `dreamina` / `flow` 或 0 成本轨道（`大字报` / `实拍快剪`），绝不伪造调用。
+2. **提示词合规与防穿帮**：
+   - 严格套用上方第二节 6 条铁律（竖屏 9:16、无字幕无文字无水印、只说一遍、无背景音乐留干声或无声开场闭嘴动作）；
+   - 调用宿主生视频工具前，**先用 `python3 -c "... check_forbidden_terms([...])"` 核验 0 禁用词**，免得白扣宿主积分。
+3. **防重复扣宿主积分（轻量状态锁）**：
+   - 发起调用前，先在任务目录写入 `host_video_task.json`（含 `title`、`prompt`、`submitted_at`、`status: "submitting"`、`raw_video: ""`）；拿到宿主生成的 `.mp4` 原片并校验非空后，更新 `status: "done"` 与 `raw_video` 路径；中断或重跑时先检查 `host_video_task.json` 与原片文件是否已存在，防止反复生视频浪费额度。
+4. **两种出片模式 + HyperFrames 统一包装与台账记账**：
+   - **全片口播**：拿到宿主 5–10s 带人声 MP4 原片后，写入 `job.json`（`track: "host_video"`、`format_label: "宿主AI片"`、`mode: "native_audio"`）；
+   - **省额度混剪**：用宿主生 1 段 4–5s 无声吸睛开场 + `media_manager.py footage --count 2` 抽 2 段未用本地实拍 + `Edge-TTS` 干声旁白（`mode: "montage"`）；
+   - 一键送入 `python3 scripts/package_ai_video.py --job job.json --out-dir outputs --organize-by-date`，自动补齐顶标、防孤字大字幕、EBU R128 `-14/-16 LUFS` 混音、`9:16`/`3:4` 双封面、8 帧 `qc-contact.jpg` 并记入 `task_tracker.py`（`宿主AI片`）。
+
+---
+
 ## 三、即梦 CLI（`dreamina`）—— 国内直连全自动生视频
 
 **严格 Opt-in**：仅当成员明确要求「用即梦生视频 / 做条即梦片」时调用。
@@ -129,7 +154,7 @@
 **严格 Opt-in + 金额上限护栏**：仅当成员明确要求「用 API / 词元 / Seedance / MiniMax / Omni API 生成」时调用，严禁在普通免费出片/批量任务中静默扣费。Windows / macOS 纯 HTTP 标准库直出，无需安装浏览器扩展或 CLI，稳定性最高。
 
 ### 1. 一次配置（零硬编码密钥 + 后台分组额度护栏）
-1. **财务安全建议**：在聚合 API 控制台单独新建一个「视频专用令牌」，**只勾选所需分组（如 `default` / `sd2.0` / `minimax-h3专属` 等低倍率分组）并设置明确金额上限**（不要勾选「无限额度」）；
+1. **财务安全建议（防 6x/11x 溢价避坑铁律）**：在聚合 API 控制台单独新建一个「专用限额令牌」并设置明确金额上限（严禁勾选「无限额度」）。更重要的是：**严禁勾选“全选所有分组”！** 不同分组倍率差异极大，只保留 `0.7x–1.9x` 低倍分组（如 `flux生图`、`特价banana`、`gemini-cli`、`default默认`、`国内模型1`、`sd2.0`），并**彻底剔除 `优质*` / `官转*` / `直连*`（`2.4x–16x`）高倍分组**，防止单次调用被静默按 `6x`/`11x` 倍率放大扣费；
 2. 将网关根地址（例如 `https://api.tiantoken.com`）与令牌写入本机 `~/.yidehai-video/config.json`（也可通过环境变量 `YIDEHAI_VIDEO_API_BASE_URL` / `YIDEHAI_VIDEO_API_KEY` 传入）：
    ```sh
    python3 scripts/media_manager.py config --set-video-api-url "https://api.tiantoken.com" --set-video-api-key "<YOUR_LIMIT_TOKEN>"

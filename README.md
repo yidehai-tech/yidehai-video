@@ -1,6 +1,6 @@
 # yidehai-video
 
-![Version](https://img.shields.io/badge/version-2.11.0-2B8A3E)
+![Version](https://img.shields.io/badge/version-2.12.0-2B8A3E)
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue)
 ![Standard](https://img.shields.io/badge/Agent%20Skills-SKILL.md-orange)
 
@@ -11,9 +11,9 @@
 
 ## 核心特性
 
-- **10 大生产轨道统一调度**：覆盖 0 成本高频日更（`大字报` / `动效片` / `实拍混剪` / `实拍快剪` / `前后对比片` / `口播包装`）、一鱼两吃（`图文故事片`）与付费高拟真 AI 视频（`即梦片` / `Flow片` / **`API片`**）。
+- **11 大生产轨道统一调度**：覆盖 0 成本高频日更（`大字报` / `动效片` / `实拍混剪` / `实拍快剪` / `前后对比片` / `口播包装`）、一鱼两吃（`图文故事片`）、宿主内置 AI 省钱路线（**`宿主AI片`**）与付费高拟真 AI 视频（`即梦片` / `Flow片` / `API片`）。
 - **全平台 Agent 自动分级适配**：自动识别运行环境（L1 桌面执行型 / L2 轻沙箱型 / L3 纯对话知识库型），在任意工具中开箱即用。
-- **积分与费用自主选择护栏**：默认仅使用 0 积分免费轨道；调用宿主内置生图、即梦 CLI、Google Flow 或云端视频 API 前均要求显式选择与确认，并具备提交前原子落盘防重复扣费机制。
+- **积分与费用自主选择护栏**：默认仅使用 0 积分免费轨道；调用宿主内置生图/生视频、即梦 CLI、Google Flow 或云端视频 API 前均要求显式选择与确认，并具备提交前原子落盘防重复扣费机制。
 - **统一成片质量标准**：默认启用 EBU R128 响度归一化混音（有旁白轨道：**人声 `-14 LUFS` + 真实无版权 BGM `-16 LUFS × 18%`**；`大字报`：**`-16 LUFS × 0.85`**）、无底部品牌浮条与全屏静态尾卡、自动产出 `9:16` + `3:4` 双封面与 8 帧质检联系图。
 - **跨 Agent 共享任务台账与离线仪表盘**：`tasks.json` + 单文件静态 `dashboard.html` 自动记录各宿主出片状态、成功率、各形态分布与封面缩略图，支持跨 Agent 断点接力与僵尸中断任务自愈。
 - **本机配置与防重隔离**：素材目录、API Key、防重账本与任务台账全部持久化在 `~/.yidehai-video/`，与 Skill 仓库彻底解耦。
@@ -30,6 +30,7 @@
 | **`实拍快剪`** | `fastcut` | 免费（0 点） | ✓（AI） | `render_footage_video.py`（离线零浏览器） | 6–8 个 1.2–2.0s 快切实拍短镜头 + 卡点字幕 |
 | **`前后对比片`** | `before_after` | 免费（0 点） | ✓（AI） | `render_footage_video.py`（离线零浏览器） | 上下分屏对比（清理前 vs 清空后徽章）+ 强共鸣口播 |
 | **`图文故事片`** | `storybook` | 按图源定（可 0 点） | ✓（AI） | `storybook_builder.py` + HeyGen HyperFrames | 4–6 张分镜图平滑推镜成片 + **小红书 3:4 轮播套图** |
+| **`宿主AI片`** | `host_video` | 0 外部 API 费（耗宿主额度） | ✓ | 当前 Agent 内置生视频 + HeyGen HyperFrames | 复用豆包/WorkBuddy/千问/扣子自带生视频能力省外部成本 |
 | **`即梦片`** | `dreamina` | 扣即梦积分（Opt-in） | ✓ | `dreamina_runner.py` + HeyGen HyperFrames | 纯即梦口播或「即梦 5s 开场 + 本地实拍」省积分混剪 |
 | **`Flow片`** | `flow` | 扣 Google 点数（Opt-in） | ✓ | `ego-lite` + Google Flow + HeyGen HyperFrames | `Omni 1.2 Flash` 口播或 `Veo 3.1 Lite` 10 点省点混剪 |
 | **`API片`** | `api_video` | 扣聚合 API 余额（Opt-in） | ✓ | `api_video_runner.py` + HeyGen HyperFrames | 纯 HTTP 零浏览器直出 `Omni 1.2` / 豆包 `sd-2.0/2.5` / `MiniMax-H3` / `Veo 3.1` / `Kling` |
@@ -108,8 +109,8 @@ python3 scripts/media_manager.py config --add-footage-dir "/path/to/footage"
 python3 scripts/media_manager.py config --set-video-api-url "<YOUR_VIDEO_API_BASE_URL>" --set-video-api-key "<YOUR_LIMIT_TOKEN>"
 python3 scripts/api_video_runner.py check
 
-# 设置图文故事片默认生图来源（ask / host_tool / dreamina / api_image / free_api / local）
-python3 scripts/media_manager.py config --set-image-source ask
+# 设置图文故事片默认生图来源 / AI生视频默认渠道（可先询问或固定为 host_video 优先省外部费）
+python3 scripts/media_manager.py config --set-image-source ask --set-video-source ask
 python3 scripts/api_image_runner.py check   # （若复用云端 API 余额生图，可先零扣费查看可用生图模型）
 
 # 查看跨 Agent 共享任务台账与待续渲列表（双击 ~/.yidehai-video/dashboard.html 可离线看图表）
@@ -124,6 +125,7 @@ python3 scripts/task_tracker.py list --status pending_render
 帮我批量生成 20 条旧衣回收视频（默认 50% 大字报 + 50% 动效片）
 用本地实拍素材做一条 0 点实拍混剪 / 实拍快剪 / 前后对比片
 帮我做一条旧羽绒服回收的图文故事片（同步出小红书轮播图）
+用当前工具自带的生视频功能做一条旧衣回收视频（宿主AI片）
 用即梦 CLI 做一条省积分混剪视频
 用 Google Flow 省点轮换出一条旧鞋旧包回收视频
 用云端视频 API（Omni / Seedance / MiniMax / 万相）做一条真人口播视频
@@ -136,7 +138,7 @@ python3 scripts/task_tracker.py list --status pending_render
 
 | 等级 | 宿主类型 | 代表工具 | 运行模式 |
 | :--- | :--- | :--- | :--- |
-| **L1** | 完整桌面执行型 | WorkBuddy、Claude Code、Codex、Cursor、Antigravity、Windsurf、OpenClaw | 全 10 轨道自动检测依赖、渲染成片、抽帧质检并按日期归档 |
+| **L1** | 完整桌面执行型 | WorkBuddy、Claude Code、Codex、Cursor、Antigravity、Windsurf、OpenClaw | 全 11 轨道自动检测依赖、渲染成片、抽帧质检并按日期归档 |
 | **L2** | 轻终端 / 受限沙箱型 | 云端容器、受限终端 Agent | 优先运行纯本地离线脚本，缺少渲染引擎时平滑降级 |
 | **L3** | 纯对话 / 知识库型 | 豆包、通义千问、Kimi、扣子、ChatGPT Projects | 自动跳过本地脚本检测，输出合规脚本 + 双封面字 + 防穿帮 Prompt |
 
@@ -146,7 +148,7 @@ python3 scripts/task_tracker.py list --status pending_render
 
 ```text
 yidehai-video/
-├── SKILL.md                               # Skill 入口：L1/L2/L3 适配、10 形态工作流与合规自检
+├── SKILL.md                               # Skill 入口：L1/L2/L3 适配、11 形态工作流与合规自检
 ├── README.md                              # 项目说明文档
 ├── knowledge/
 │   ├── 00-auto-setup.md                   # OpenMotion / HeyGen HyperFrames / ego-lite / dreamina 自动检测与安装
