@@ -2,9 +2,9 @@
 name: yidehai-video
 description: >-
   亿德海（yidehai）团队短视频创作与批量出片 Skill（全面兼容市面上所有主流 AI Agent 工具：WorkBuddy、Claude Code、Codex、Cursor、Antigravity、OpenClaw 等桌面执行型 Agent，以及豆包、通义千问、Kimi、扣子等对话/知识库型 Agent）。
-  统一 9 大中文视频形态：「大字报」、「动效片」、「实拍混剪」、「实拍快剪」、「前后对比片」、「图文故事片」（短视频+小红书轮播一鱼两吃）、「即梦片」、「Flow片」、「口播包装」，支持单条精做与批量出片，具备按宿主能力自动分级适配（有终端自动渲染出片；纯对话宿主自动交付满血合规脚本 + 双封面字 + 可直接粘贴的即梦/Flow 防穿帮 Prompt）。
-  当团队成员说“帮我做一条旧衣回收视频”、“做一条大字报/动效片/实拍混剪/实拍快剪/前后对比片/图文故事片/即梦片/Flow片/口播包装”、“帮我批量生成 50/100 条视频”、“初始化/配置素材路径”、“更新视频助手”时，自动按本 Skill 执行。
-version: "2.9.0"
+  统一 10 大中文视频形态：「大字报」、「动效片」、「实拍混剪」、「实拍快剪」、「前后对比片」、「图文故事片」（短视频+小红书轮播一鱼两吃）、「即梦片」、「Flow片」、「API片」、「口播包装」，支持单条精做与批量出片，具备按宿主能力自动分级适配（有终端自动渲染出片；纯对话宿主自动交付满血合规脚本 + 双封面字 + 可直接粘贴的即梦/Flow 防穿帮 Prompt）。
+  当团队成员说“帮我做一条旧衣回收视频”、“做一条大字报/动效片/实拍混剪/实拍快剪/前后对比片/图文故事片/即梦片/Flow片/API片/口播包装”、“帮我批量生成 50/100 条视频”、“初始化/配置素材路径”、“更新视频助手”时，自动按本 Skill 执行。
+version: "2.10.0"
 ---
 
 # 亿德海团队短视频创作与出片 Skill
@@ -30,7 +30,7 @@ version: "2.9.0"
 
 ---
 
-## 〇、统一中文视频形态命名（9 大轨道 · 告别英文工具名）
+## 〇、统一中文视频形态命名（10 大轨道 · 告别英文工具名）
 
 | 中文名称（直接说中文即可） | 内部标识 | 成本与定位 | 是否有旁白 | 底层引擎 | 触发规则 |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -42,11 +42,12 @@ version: "2.9.0"
 | **`图文故事片`** | `storybook` | **按所选图源定（0 点或少量积分）** · 4–6 张分镜图推镜成片 + **同步出小红书 3:4 轮播套图**（一鱼两吃） | ✓ | `scripts/storybook_builder.py` + **HeyGen HyperFrames** | 成员说“做图文故事片 / 绘本视频 / 小红书图文+视频”时使用，**生图渠道由成员 4 选 1 确认** |
 | **`即梦片`** | `dreamina` | **扣即梦积分** · 支持「纯即梦全片」与「**省积分混剪**（即梦 5s 开场 + 本地实拍）」 | ✓ | `dreamina` CLI（`scripts/dreamina_runner.py`）+ **HeyGen HyperFrames** | **严格 Opt-in**（明确说“用即梦”） |
 | **`Flow片`** | `flow` | **扣 Google 点数** · 支持「Omni 1.2 口播（24–30点）」与「**省点混剪**（Veo 3.1 Lite 10点开场 + 本地实拍）」 | ✓ | **`ego-lite` 全自动**操控 Google Flow + **HeyGen HyperFrames** | **严格 Opt-in**（明确说“用 Flow”） |
+| **`API片`** | `api_video` | **扣聚合 API 余额** · 纯 HTTP 直出 `Omni 1.2 Flash` / 豆包 `sd-2.0/2.5` / `MiniMax-H3` / `Veo 3.1` / `Kling`，零浏览器跨平台 | ✓ | `scripts/api_video_runner.py` + **HeyGen HyperFrames** | **严格 Opt-in**（明确说“用 API / 词元 / Seedance / MiniMax / Omni 生成”） |
 | **`口播包装`** | `motiongit` | **0 点** · 真人实拍口播视频套用高质感动态风格模板 | ✓（真人原声） | MotionGit 官方免费模板（活力海报/现代编辑/纸张透视等） | 成员提供真人实拍口播视频时使用 |
 
-> **统一成片观感红线**：顺应原生 UGC 风格，`动效片`、`实拍混剪`、`即梦片`、`Flow片`、`口播包装` 均**不放底部品牌浮条、不做全屏静态尾卡**，话音或画面一落立刻利落收尾保完播。（注：`大字报` 属于单屏文字版式，其底部静态业务信息胶囊为版式组成部分，不在此限。）
+> **统一成片观感红线**：顺应原生 UGC 风格，`动效片`、`实拍混剪`、`即梦片`、`Flow片`、`API片`、`口播包装` 均**不放底部品牌浮条、不做全屏静态尾卡**，话音或画面一落立刻利落收尾保完播。（注：`大字报` 属于单屏文字版式，其底部静态业务信息胶囊为版式组成部分，不在此限。）
 
-> **统一成片音频口径（全 skill 一致，最高优先级）**：默认成片必须带真实无版权 BGM 并启用广播级响度标准化（`loudnorm`）——**有旁白轨道（`动效片`/`实拍混剪`/`图文故事片`/`即梦片`/`Flow片`）= 人声归一化 `-14 LUFS` + BGM 归一化 `-16 LUFS` 后 `18%` 垫底**（保证手机外放人声清晰响亮、轻音乐稳定可闻且绝不盖人声）；**纯画面无旁白的 `大字报` = BGM 归一化 `-16 LUFS`（`0.85` 倍率）清晰输出**。仅成员明确说「无声版 / 不要背景音乐」时才加 `--silent` 输出无声版。**缺少真实 BGM 源时硬拦截，严禁跳过直接产出无声残缺作品！** 详见 `knowledge/01-brand-rules.md` 第三节与 `knowledge/09-motion-batch-field-notes.md` 第三节。
+> **统一成片音频口径（全 skill 一致，最高优先级）**：默认成片必须带真实无版权 BGM 并启用广播级响度标准化（`loudnorm`）——**有旁白轨道（`动效片`/`实拍混剪`/`图文故事片`/`即梦片`/`Flow片`/`API片`）= 人声归一化 `-14 LUFS` + BGM 归一化 `-16 LUFS` 后 `18%` 垫底**（保证手机外放人声清晰响亮、轻音乐稳定可闻且绝不盖人声）；**纯画面无旁白的 `大字报` = BGM 归一化 `-16 LUFS`（`0.85` 倍率）清晰输出**。仅成员明确说「无声版 / 不要背景音乐」时才加 `--silent` 输出无声版。**缺少真实 BGM 源时硬拦截，严禁跳过直接产出无声残缺作品！** 详见 `knowledge/01-brand-rules.md` 第三节与 `knowledge/09-motion-batch-field-notes.md` 第三节。
 
 ---
 
@@ -62,7 +63,7 @@ version: "2.9.0"
 5. **风格样本层**：`knowledge/05-good-examples.md` — 已验证的亿德海真实过审脚本。
 6. **OpenMotion 渲染层**：`knowledge/06-rendering-playbook.md` — `动效片` native 组件补齐、lint、同步渲染与抽帧质检。
 7. **大字报批量实战层**：`knowledge/07-poster-batch-field-notes.md` — 批量出 10 条以上 `大字报` 前必读。
-8. **AI 生视频与混剪/口播包装层**：`knowledge/08-ai-video-engines.md` — `即梦片`、`Flow片`（`ego-lite` 全自动 + 省点混剪轮换）、`实拍混剪` 与 `口播包装`（MotionGit 免费模板）完整操作手册。
+8. **AI 生视频与混剪/口播包装层**：`knowledge/08-ai-video-engines.md` — `即梦片`、`Flow片`（`ego-lite` 全自动 + 省点混剪轮换）、`API片`（云端聚合视频 API）、`实拍混剪` 与 `口播包装`（MotionGit 免费模板）完整操作手册。
 9. **动效片批量实战层**：`knowledge/09-motion-batch-field-notes.md` — 批量 ≥3 条的配色轮换硬规则、5 套已验证浅色主题、已验证 OpenMotion 底版复用、子合成 CSS 覆盖坑、中文旁白 + 真实 BGM 有声版参数与质检清单。**批量出 `动效片` 前必读**。
 10. **图文故事片一鱼两吃层**：`knowledge/10-storybook-workflow.md` — `图文故事片` 的生图渠道 4 选 1 确认机制（宿主内置生图 / 即梦 CLI / 免费 API / 本地图片）、画风统一防乱码 Prompt 与短视频 + 小红书 3:4 轮播套图一键生成。
 11. **本地实拍库高转化快剪/对比层**：`knowledge/11-local-footage-formats.md` — `实拍快剪`（6–8 镜头快切）与 `前后对比片`（上下分屏对比）的分桶抽素材方法、离线秒级渲染命令与合规规范。
@@ -72,7 +73,7 @@ version: "2.9.0"
 ## 二、标准工作流（安装一体化 · 生成前素材/Key 硬门禁 · 严禁出残缺半成品）
 
 > **零打扰与成片完整性硬原则**：
-> - **绝不静默扣积分（宿主内置工具 / 即梦 / Flow 均需成员明确选择）**：国内 Agent（WorkBuddy、豆包、通义千问、扣子等）通常自带生图/生视频工具，但均消耗积分。成员只说“帮我做一条视频”或“批量生成 50 条视频”时，**永远只用 0 积分的免费形态**（单条默认 `大字报`/`动效片`/`实拍混剪`；批量默认 50% `大字报` + 50% `动效片`）。当任务需要生图或 AI 生视频时，**必须让成员明确选择渠道**（例如「调用当前工具内置生图 / 走即梦 CLI / 走免费外部 API / 用本地素材」），严禁未经确认静默扣分。
+> - **绝不静默扣积分（宿主内置工具 / 即梦 / Flow / 云端视频 API 均需成员明确选择）**：国内 Agent（WorkBuddy、豆包、通义千问、扣子等）通常自带生图/生视频工具，但均消耗积分。成员只说“帮我做一条视频”或“批量生成 50 条视频”时，**永远只用 0 积分的免费形态**（单条默认 `大字报`/`动效片`/`实拍混剪`；批量默认 50% `大字报` + 50% `动效片`）。当任务需要生图或 AI 生视频时，**必须让成员明确选择渠道**（例如「调用当前工具内置生图 / 走即梦 CLI / 走免费外部 API / 走云端视频 API / 用本地素材」），严禁未经确认静默扣分。
 > - **安装一体化，不拆轮请示**：当成员说“安装 `yidehai-video`”时，克隆到独立持久化目录（推荐 `~/.yidehai-video/skill-repo`）、运行 `scripts/link_skill.py` 安全挂载、以及安装免费且无风险的基础运行环境（`ffmpeg`/`ffprobe`、`edge-tts`、`Pillow`、`requests`）应**一口气连续完成并验证**，不要每步停下来问「要不要装」。
 > - **硬红线：严禁在缺少必需素材/Key 时跳过直接生成半成品**：为避免全员撞画面，本 Skill **不预置公用风景空镜包**；视频背景、音乐、图源等关键配置缺失时，**必须拦截并先让用户一次性补齐，绝不允许回落纯色底或静默丢音乐产出不完整/失败作品**！
 > - **禁止反复弹窗问选题**：成员没指定主题时直接按四维矩阵自动选未重复选题（除非成员明确要求“先给我几个选题挑挑”）。
@@ -83,7 +84,7 @@ version: "2.9.0"
 
 每次开始生成视频前，必须先按目标轨道执行硬门禁校验：
 ```sh
-python3 scripts/media_manager.py preflight --track <poster|motion|montage|storybook|dreamina|flow|motiongit>
+python3 scripts/media_manager.py preflight --track <poster|motion|montage|fastcut|before_after|storybook|dreamina|flow|api_video|motiongit>
 ```
 （仅成员明确要求无声版时才加 `--silent`。）
 
@@ -92,14 +93,15 @@ python3 scripts/media_manager.py preflight --track <poster|motion|montage|storyb
   - **`大字报`（`poster`）必配**：① 风景空镜源（**Pexels / Pixabay 免费 API Key** 或 **本地风景空镜目录** 二选一，绝不出纯色底）；② 真实 BGM 源（默认在线无版权 BGM / **Jamendo Client ID** / **本地 BGM 目录**，绝不出无声半成品）。
   - **`实拍混剪`（`montage`）必配**：① **本地业务实拍素材目录**；② 真实 BGM 源。
   - **`图文故事片`（`storybook`）必配**：① 确认分镜图源（若选免费图库 API 则必配 **Pexels / Pixabay Key**）；② 真实 BGM 源。
+  - **`API片`（`api_video`）必配**：① **云端视频 API 网关地址与专属令牌 Key**（`--set-video-api-url` 与 `--set-video-api-key`）；② 真实 BGM 源。
   - **`口播包装`（`motiongit`）必配**：① **本地 MotionGit 官方免费 `.motion` 模板目录**。
-  - 收到成员回复的 Key 或目录后，立刻调用 `media_manager.py config --set-pexels-key / --set-pixabay-key / --set-jamendo-id / --add-bg-dir / --add-bgm-dir / --add-footage-dir / --set-motion-templates-dir` 持久化写入，然后立刻恢复出片。（**目录隔离硬规**：`local_bg_dirs` **只放干净自然风景空镜**，客户衣物/打包实拍视频与照片只放 `local_footage_dirs`，严禁把实拍目录误塞进 `local_bg_dirs` 污染大字报底图；严禁擅自扫描系统个人 `Music` 或全盘硬盘。）
+  - 收到成员回复的 Key 或目录后，立刻调用 `media_manager.py config --set-pexels-key / --set-pixabay-key / --set-jamendo-id / --set-video-api-url / --set-video-api-key / --add-bg-dir / --add-bgm-dir / --add-footage-dir / --set-motion-templates-dir` 持久化写入，然后立刻恢复出片。（**目录隔离硬规**：`local_bg_dirs` **只放干净自然风景空镜**，客户衣物/打包实拍视频与照片只放 `local_footage_dirs`，严禁把实拍目录误塞进 `local_bg_dirs` 污染大字报底图；严禁擅自扫描系统个人 `Music` 或全盘硬盘。）
 
 ### Step 1：自动定题与写稿 + 合规双检
 1. 核对 `knowledge/02-business-faq.md` 与 `~/.yidehai-video/used_history.json`，未指定主题时按四维选题矩阵自动定题（仅成员主动要求“先给我几个选题挑挑”时才给 3 个切角）。
 2. 按目标形态写稿并静默通过 2 项硬核自检（合规禁用词 0 命中 + 真实业务事实/开头 3 秒感觉词），同时产出双封面两行大字与 6 平台通用发布文案。
 
-### Step 2：按形态自动出片（9 条路径）
+### Step 2：按形态自动出片（10 条路径）
 
 - **路径 P：`大字报`（0 点 · 离线直出 · 支持 `**关键词**` 主题色高亮与逐段轻浮现动效）**
   - `python3 scripts/render_poster.py --job job.json --out-dir outputs --organize-by-date`（默认已配 `-16 LUFS` 清晰无版权 BGM；正文推荐 2–3 自然段空行分隔、每段 1–2 处 `**关键词**` 高亮；仅成员明确说「无声版」才加 `--silent`）。
@@ -122,8 +124,10 @@ python3 scripts/media_manager.py preflight --track <poster|motion|montage|storyb
   - 严格按 `knowledge/08-ai-video-engines.md` 第一、二、三节执行：先做「选题 → 档位 → 人物/场景」匹配并套用中文口播/无声开场防穿帮提示词模板 → `dreamina_runner.py check` 查余额 → 优先推荐「省积分混剪（即梦 4–5s 无声吸睛开场 + 2 段本地实拍 + Edge-TTS）」或按要求出纯即梦口播全片 → `dreamina_runner.py submit`（防重落盘 `submit_id`）→ 下载原片 → `package_ai_video.py` 走 HeyGen HyperFrames 高画质包装。
 - **路径 F：`Flow片`（Opt-in 扣 Google 点数 · `ego-lite` 全自动 + HeyGen HyperFrames）**
   - 严格按 `knowledge/08-ai-video-engines.md` 第一、二、四节执行：先强校验 `ego-browser ready`（未装则按 `00-auto-setup.md` 第三节自动装/引导装 `ego-lite`）→ 按选题匹配最佳档位（单痛点选 `Omni 1.2 Flash` 8s=24点 / 干货选 10s=30点 / 清单类选 `Veo 3.1 Lite` 10点无声开场 + 本地实拍省点混剪）并套用英画中词防穿帮模板 → 核对页面点数后全自动生成并无损下载 720p 原片 → `package_ai_video.py` 走 HeyGen HyperFrames 高画质包装。
+- **路径 API：`API片`（Opt-in 扣聚合 API 余额 · 纯 HTTP 零浏览器 + HeyGen HyperFrames）**
+  - 严格按 `knowledge/08-ai-video-engines.md` 第一、二、五节执行：先跑 `api_video_runner.py check` 零扣费确认网关连通与可用模型 → 套用合规提示词模板（`Omni 1.2 Flash` 口播 / 豆包 `sd-2.0/2.5` & `MiniMax-H3` 人像或图生 / `Veo 3.1` 无声开场省钱混剪 / `Kling`）→ `api_video_runner.py submit --poll 300`（前置禁用词拦截 + 原子落盘防重扣）→ 下载 `*_raw.mp4` 后送入 `package_ai_video.py` 走 HeyGen HyperFrames 高画质包装、字幕与双封面产出。
 - **路径 G：`口播包装`（0 点 · MotionGit 官方免费模板）**
-  - 按 `knowledge/08-ai-video-engines.md` 第四节，读取成员本机配置的免费 `.motion` 模板目录，驱动 MotionGit 官方 runtime 包装真人实拍口播视频并补齐双封面与抽帧质检。
+  - 按 `knowledge/08-ai-video-engines.md` 第七节，读取成员本机配置的免费 `.motion` 模板目录，驱动 MotionGit 官方 runtime 包装真人实拍口播视频并补齐双封面与抽帧质检。
 
 ### Step 3：交付前目视质检
 用图片查看工具核验 `qc-contact.jpg`（如有）、`cover-9x16.jpg` 与 `cover-3x4.jpg`：无乱码/水印/孤字换行/边缘裁切、无品牌浮条与静态尾卡，然后交付成品路径与 6 平台发布文案（含「AI 生成」声明提醒）。

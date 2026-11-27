@@ -658,6 +658,8 @@ def main() -> None:
             raw_track = "dreamina"
         elif "flow" in fl.lower():
             raw_track = "flow"
+        elif "api" in fl.lower() or "云端" in fl or "omni" in fl.lower() or "seedance" in fl.lower():
+            raw_track = "api_video"
         elif mode == "montage":
             raw_track = "montage"
         else:

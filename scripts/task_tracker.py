@@ -3,7 +3,7 @@
 亿德海跨 Agent 共用任务台账与本地静态仪表盘（纯标准库，零外部依赖，零后台服务）
 
 单一事实源（固定位于 ~/.yidehai-video/，与 config.json / used_history.json 同级）：
-  - ~/.yidehai-video/tasks.json       : 全 9 大轨道任务生命周期台账（带跨进程文件锁 + 原子写入）
+  - ~/.yidehai-video/tasks.json       : 全 10 大轨道任务生命周期台账（带跨进程文件锁 + 原子写入）
   - ~/.yidehai-video/dashboard.html   : 自动刷新的纯离线可视化仪表盘（双击浏览器直接查看，无需起服务）
 
 设计红线：
@@ -52,6 +52,7 @@ TRACK_LABELS = {
     "storybook": "图文故事片",
     "dreamina": "即梦片",
     "flow": "Flow片",
+    "api_video": "API片",
     "motiongit": "口播包装",
     "other": "其他",
 }

@@ -186,6 +186,14 @@ def resolve_ffmpeg_tools() -> tuple[str, str]:
     return _find_one(ff_name, "ffmpeg"), _find_one(fp_name, "ffprobe")
 
 
+def normalize_video_api_base_url(url: str) -> str:
+    """规范化视频 API 网关根地址：去掉末尾斜杠与尾部 /v1，避免拼路径重复。"""
+    s = str(url or "").strip().rstrip("/")
+    if s.lower().endswith("/v1"):
+        s = s[:-3].rstrip("/")
+    return s
+
+
 def load_config() -> dict:
     if CONFIG_PATH.exists():
         try:
@@ -204,6 +212,10 @@ def load_config() -> dict:
     data.setdefault("cache_img_dir", str(CACHE_IMG_DIR))
     data.setdefault("bg_source", "both")  # both | local | online
     data.setdefault("default_image_source", "")  # "" (ask) | host_tool | dreamina | free_api | local
+    data.setdefault("video_api_base_url", "")
+    data.setdefault("video_api_key", "")
+    data.setdefault("video_api_user_id", "")
+    data.setdefault("video_api_default_model", "gemini-omni-1.2-flash")
     data.setdefault("initialized", False)
     data.setdefault("onboarding_dismissed", False)
     return data
@@ -531,6 +543,10 @@ def run_preflight(track: str, silent: bool = False, cfg: dict | None = None, pro
     pexels_key = os.environ.get("PEXELS_API_KEY") or cfg.get("pexels_api_key") or ""
     pixabay_key = os.environ.get("PIXABAY_API_KEY") or cfg.get("pixabay_api_key") or ""
     jamendo_id = os.environ.get("JAMENDO_CLIENT_ID") or cfg.get("jamendo_client_id") or ""
+    video_api_base_url = normalize_video_api_base_url(
+        os.environ.get("YIDEHAI_VIDEO_API_BASE_URL") or cfg.get("video_api_base_url") or ""
+    )
+    video_api_key = (os.environ.get("YIDEHAI_VIDEO_API_KEY") or cfg.get("video_api_key") or "").strip()
 
     has_bg_local = _dir_has_files(cfg.get("local_bg_dirs", []), video_exts)
     has_bg_cache = _dir_has_files([cfg.get("cache_bg_dir", CACHE_BG_DIR)], video_exts)
@@ -597,8 +613,20 @@ def run_preflight(track: str, silent: bool = False, cfg: dict | None = None, pro
                 ],
             })
 
+    # 4.5) 云端聚合视频 API 配置校验（API片 必配）
+    if track == "api_video":
+        if not video_api_base_url or not video_api_key:
+            missing.append({
+                "item": "video_api_config",
+                "label": "云端视频 API 网关地址与令牌（必配）",
+                "reason": "API片（api_video）需要本机配置网关地址（video_api_base_url）与专属令牌（video_api_key），仓库内不预置私钥。",
+                "how_to_fix": [
+                    "python3 scripts/media_manager.py config --set-video-api-url \"https://api.tiantoken.com\" --set-video-api-key \"<YOUR_LIMIT_TOKEN>\"",
+                ],
+            })
+
     # 5) 背景音乐校验（所有非 --silent 轨道必配，严禁悄悄产出无声半成品）
-    if not silent and track in {"poster", "motion", "montage", "fastcut", "before_after", "storybook", "dreamina", "flow"}:
+    if not silent and track in {"poster", "motion", "montage", "fastcut", "before_after", "storybook", "dreamina", "flow", "api_video"}:
         bgm_ready = has_bgm_local or has_bgm_cache or has_bgm_api
         if not bgm_ready and probe_online_bgm:
             got = ensure_online_media("bgm_tracks", count=1, cfg=cfg)
@@ -629,6 +657,8 @@ def run_preflight(track: str, silent: bool = False, cfg: dict | None = None, pro
             "has_bgm_local": has_bgm_local,
             "has_bgm_cache": has_bgm_cache,
             "has_jamendo_id": bool(jamendo_id),
+            "has_video_api_url": bool(video_api_base_url),
+            "has_video_api_key": bool(video_api_key),
         },
     }
 
@@ -648,6 +678,10 @@ def main() -> None:
     p_cfg.add_argument("--set-pexels-key", help="保存可选 Pexels 免费 API Key 到本机配置")
     p_cfg.add_argument("--set-pixabay-key", help="保存可选 Pixabay 免费 API Key 到本机配置")
     p_cfg.add_argument("--set-jamendo-id", help="保存可选 Jamendo 免费音乐 Client ID 到本机配置")
+    p_cfg.add_argument("--set-video-api-url", help="保存云端视频 API 网关地址（自动归一化，如 https://api.tiantoken.com）")
+    p_cfg.add_argument("--set-video-api-key", help="保存云端视频 API 专属令牌 Key 到本机配置（建议使用带额度上限的分组令牌）")
+    p_cfg.add_argument("--set-video-api-user-id", help="保存可选 New-Api-User ID（仅用于查询令牌使用情况）")
+    p_cfg.add_argument("--set-video-api-model", help="设置云端视频 API 默认模型名（如 gemini-omni-1.2-flash / sd-2.0 / MiniMax-H3）")
     p_cfg.add_argument("--mark-initialized", action="store_true", help="标记首次素材与环境初始化已完成，后续不再主动弹窗")
     p_cfg.add_argument("--dismiss-onboarding", action="store_true", help="标记用户已明确跳过首次引导，后续不再提醒")
 
@@ -663,7 +697,7 @@ def main() -> None:
     p_foot.add_argument("--exclude-keyword", action="append", default=[], help="可选：路径或文件名需排除的关键词（可重复）")
 
     p_pre = sub.add_parser("preflight", help="生成前硬校验门禁：检查目标轨道所需的视频/图片/音乐/API Key 是否齐备")
-    p_pre.add_argument("--track", choices=["poster", "motion", "montage", "fastcut", "before_after", "storybook", "dreamina", "flow", "motiongit"], required=True)
+    p_pre.add_argument("--track", choices=["poster", "motion", "montage", "fastcut", "before_after", "storybook", "dreamina", "flow", "api_video", "motiongit"], required=True)
     p_pre.add_argument("--silent", action="store_true", help="显式声明本次出无声版（跳过 BGM 强制校验）")
     p_pre.add_argument("--no-online-probe", action="store_true", help="仅检查本机配置与缓存，不触发在线 BGM 探测下载")
 
@@ -710,6 +744,18 @@ def main() -> None:
         if args.set_jamendo_id:
             cfg["jamendo_client_id"] = args.set_jamendo_id.strip()
             changed = True
+        if args.set_video_api_url:
+            cfg["video_api_base_url"] = normalize_video_api_base_url(args.set_video_api_url)
+            changed = True
+        if args.set_video_api_key:
+            cfg["video_api_key"] = args.set_video_api_key.strip()
+            changed = True
+        if args.set_video_api_user_id:
+            cfg["video_api_user_id"] = args.set_video_api_user_id.strip()
+            changed = True
+        if args.set_video_api_model:
+            cfg["video_api_default_model"] = args.set_video_api_model.strip()
+            changed = True
         if args.mark_initialized:
             cfg["initialized"] = True
             changed = True
@@ -720,10 +766,14 @@ def main() -> None:
         if changed:
             save_config(cfg)
 
-        safe_view = {k: v for k, v in cfg.items() if "key" not in k and "client_id" not in k}
+        safe_view = {
+            k: v for k, v in cfg.items()
+            if not any(s in k.lower() for s in ("key", "client_id", "token", "secret"))
+        }
         safe_view["has_pexels_key"] = bool(cfg.get("pexels_api_key"))
         safe_view["has_pixabay_key"] = bool(cfg.get("pixabay_api_key"))
         safe_view["has_jamendo_id"] = bool(cfg.get("jamendo_client_id"))
+        safe_view["has_video_api_key"] = bool(cfg.get("video_api_key"))
         safe_view["config_path"] = str(CONFIG_PATH)
         print(json.dumps(safe_view, ensure_ascii=False, indent=2))
 

@@ -1,6 +1,6 @@
-# AI 视频生成、省点混剪与口播包装实操手册（即梦 CLI / Google Flow / 纯实拍 / MotionGit）
+# AI 视频生成、省点混剪与口播包装实操手册（即梦 CLI / Google Flow / 云端 API / 纯实拍 / MotionGit）
 
-> 本手册覆盖除 `大字报` 与 `动效片` 之外的 4 条高拟真生产轨道。所有成片均严格遵守 `knowledge/01-brand-rules.md` 合规硬红线，**全片无品牌浮条、无全屏静态尾卡，话音一落利落收尾保完播**，并统一通过 **HeyGen HyperFrames**（`https://github.com/heygen-com/hyperframes`）完成高画质渲染与 `9:16` / `3:4` 双封面产出。
+> 本手册覆盖 AI 视频与实拍包装相关生产轨道。所有成片均严格遵守 `knowledge/01-brand-rules.md` 合规硬红线，**全片无品牌浮条、无全屏静态尾卡，话音一落利落收尾保完播**，并统一通过 **HeyGen HyperFrames**（`https://github.com/heygen-com/hyperframes`）完成高画质渲染与 `9:16` / `3:4` 双封面产出。
 
 ---
 
@@ -124,7 +124,53 @@
 
 ---
 
-## 五、0 点纯实拍混剪（`实拍混剪` / `montage`）
+## 五、云端聚合视频 API（`API片` / `api_video`）—— 零浏览器、全平台直连
+
+**严格 Opt-in + 金额上限护栏**：仅当成员明确要求「用 API / 词元 / Seedance / MiniMax / Omni API 生成」时调用，严禁在普通免费出片/批量任务中静默扣费。Windows / macOS 纯 HTTP 标准库直出，无需安装浏览器扩展或 CLI，稳定性最高。
+
+### 1. 一次配置（零硬编码密钥 + 后台分组额度护栏）
+1. **财务安全建议**：在聚合 API 控制台单独新建一个「视频专用令牌」，**只勾选所需分组（如 `default` / `sd2.0` / `minimax-h3专属` 等低倍率分组）并设置明确金额上限**（不要勾选「无限额度」）；
+2. 将网关根地址（例如 `https://api.tiantoken.com`）与令牌写入本机 `~/.yidehai-video/config.json`（也可通过环境变量 `YIDEHAI_VIDEO_API_BASE_URL` / `YIDEHAI_VIDEO_API_KEY` 传入）：
+   ```sh
+   python3 scripts/media_manager.py config --set-video-api-url "https://api.tiantoken.com" --set-video-api-key "<YOUR_LIMIT_TOKEN>"
+   # 可选：若需 check 时顺带查令牌余额，可再配 New-Api-User ID
+   python3 scripts/media_manager.py config --set-video-api-user-id "<USER_ID>"
+   # 生成前硬门禁
+   python3 scripts/media_manager.py preflight --track api_video
+   ```
+3. 提交前先跑 **0 扣费连通性与可用模型核验**，确认当前令牌分组确实包含目标模型：
+   ```sh
+   python3 scripts/api_video_runner.py check
+   ```
+
+### 2. 主力模型选型与 4 套协议 Adapter 自动路由
+`scripts/api_video_runner.py` 会按 `--model` 自动选择协议（亦可用 `--adapter` 显式指定）：
+
+| 推荐模型 | 自动匹配协议 | 最适合场景 | 关键能力与默认参数 |
+| :--- | :--- | :--- | :--- |
+| **`gemini-omni-1.2-flash`** | `omni`（`/v1/videos` JSON） | 8–10s 原生中文口播全片 | 720p、`9:16`、`seconds` 3–15s（11–15s 仅支持竖屏），无需浏览器直出 |
+| **豆包 `sd-2.0` / `sd-2.5`** | `generations`（`/v1/video/generations`） | 中文人像/居家实景口播 & 图生视频 | `9:16`、去水印 `watermark=false`、支持 `--image` 本地/URL 首帧图（可选 `--upload-doubao` 传私有文件） |
+| **`MiniMax-H3`** | `generations`（`/v1/video/generations`） | 强表现力生活剧情/动作与首帧图生 | `9:16`、`768P`、`aigc_watermark=false`，同样兼容 `--image` |
+| **`veo_3_1-fast` / `veo_3_1`** | `veo_oai`（`/v1/videos` Multipart） | 5–8s 无声高画质吸睛开场 + 本地实拍省钱混剪 | 竖屏 `720x1280`、支持 `--image` 二进制直传首帧、完成后自动走 `/content` 下载 |
+| **`kling-v3-omni` / `kling-4.0`** | `kling_compat`（`/v1/kling/video/task/*`） | 动作稳定性优先、带原生音频 | `9:16`、3–15s、支持 `--image` 首帧 |
+
+### 3. 标准出片流程与防重复扣费铁律
+1. **提示词合规与写法**：套用本手册第二节 6 条铁律（`gemini-omni` / `veo` 推荐用第四节模板 A/B；豆包 / `MiniMax-H3` / `kling` 可直接用第三节自然中文模板）。`api_video_runner.py submit` 在发送 HTTP 请求前会先自动跑 `check_forbidden_terms`，命中禁用词直接拦截（**0 扣费**）。
+2. **防重提交 + 轮询下载**：
+   ```sh
+   python3 scripts/api_video_runner.py submit --task-dir outputs/tmp-api-01 --model gemini-omni-1.2-flash --duration 8 --ratio 9:16 --prompt "<合规提示词>" --poll 300
+   ```
+   - 提交前自动锁目录并将 `gen_status="submitting"` 原子写入 `api_video_task.json` 并同步记录到 `task_tracker.py`（`track="api_video"`）；
+   - 网络超时标为 `uncertain_timeout`，已存在记录时再次 `submit` 会被硬拦截（退出码 2）。断点续查统一使用：
+     `python3 scripts/api_video_runner.py query --task-dir outputs/tmp-api-01 --poll 180 --download`
+3. **HyperFrames 后期包装（全片口播 vs 省钱混剪）**：
+   - **全片口播**：把下载好的 `*_raw.mp4` 传入 `package_ai_video.py`（`mode: "native_audio"`），自动补顶标、防孤字大字幕、`-14/-16 LUFS` 混音、`9:16`/`3:4` 双封面与 8 帧质检；
+   - **省钱混剪**：用 `veo_3_1-fast` 或豆包无声开场（加 `--no-audio` 提示词要求人物不张嘴）+ `media_manager.py footage --count 2` 抽 2 段本地实拍，传入 `package_ai_video.py`（`mode: "montage"` + `Edge-TTS` 旁白）。
+4. **隐私红线**：使用 `--image` 做图生视频时，**严禁上传含真实客户人脸、门牌号、快递单号的隐私原图**；只使用脱敏场景图或 AI 生成首帧图。
+
+---
+
+## 六、0 点纯实拍混剪（`实拍混剪` / `montage`）
 
 完全零 AI 点数消耗，适合高频日常出片或配合省点轮换：
 1. 调用 `python3 scripts/media_manager.py footage --count 3` 从本机 `local_footage_dirs` 自动抽取 3 个**未在全局账本用过**的真实实拍视频或图片（静态图片在包装时会自动加上平滑 Ken Burns 轻推镜，绝不呆板）；
@@ -133,7 +179,7 @@
 
 ---
 
-## 六、MotionGit 免费口播模板包装（`口播包装` / `motiongit`）
+## 七、MotionGit 免费口播模板包装（`口播包装` / `motiongit`）
 
 当成员手头已有**真人实拍口播视频**，想做成高质感综艺/杂志/海报风动效口播片时使用（如 MotionGit 官网免费模板「活力海报」「现代编辑」「纸张透视」等）：
 
@@ -147,7 +193,7 @@
 
 ---
 
-## 七、统一交付前质检清单（不可跳过）
+## 八、统一交付前质检清单（不可跳过）
 
 任何轨道出片后，交付前必须查看 `qc-contact.jpg`、`cover-9x16.jpg`、`cover-3x4.jpg`，核验：
 1. 画面无 AI 乱码字幕、无衣服乱印字、无第三方平台水印、无畸形手/脸；
