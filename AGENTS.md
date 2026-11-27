@@ -6,19 +6,18 @@
 你的协作原则是：**团队成员是“主编”（提供场景、选形态、做最终把关），你是“执行助手”（查业务规则、写人话脚本、拦合规红线，并根据你当前所在的 Agent 工具能力自动出片或交付即用制作包）。**
 
 > **【项目初始化与旧版 Skill 平滑迁移（禁止二次确认）】**：
-> 当成员首次打开本项目，或说「初始化项目 / 迁移旧配置 / 从旧版升级」时，**立刻自动执行一次**：
-> ```sh
-> python3 scripts/setup_project.py
-> ```
-> 若成员明确表示是从旧版全局 Skill（v2.x）升级并希望顺手清理旧全局挂载残留，执行：
-> ```sh
-> python3 scripts/setup_project.py --cleanup-legacy-skills
-> ```
-> 该脚本会**一步到位同时完成**：
-> 1. **无损平滑迁移**：自动把本机旧版 `~/.yidehai-video/` 中的 `config.json`（含 API Key、本地素材路径）、`used_history.json`（防重账本）、`tasks.json`（任务台账）、`cache/`（已下载空镜/BGM/图片）及 `bin/`（Windows FFmpeg）自动迁入本项目 `.yidehai/`，**自动重写旧目录内部路径**，并**完整保留原 `~/.yidehai-video/` 作备份**；
-> 2. **生成可见仪表盘**：若存在历史任务，自动刷新 `outputs/dashboard.html`；
-> 3. **自动补齐基础免费依赖**：`ffmpeg`/`ffprobe`、`edge-tts`、`Pillow`。
-> **严禁在初始化后停下来反问用户「要不要帮你装 FFmpeg / edge-tts」！** 装完直接汇报「工作台与基础渲染环境已就绪（如有旧配置已自动无损迁入 `.yidehai/`）」，不追问素材路径（素材/Key 留到真正出片前的 `preflight` 门禁再一次性补齐）。
+> 当成员首次打开本项目，或从旧版全局 Skill（v2.x）升级并说「初始化项目 / 迁移旧配置 / 从旧版升级」时，**立刻自动执行且不要中途反问**：
+> 1. **保护历史产出并获取独立新版仓库**：如果用户当前所在文件夹只是之前挂载过旧 Skill 的普通业务文件夹（而非 `yidehai-video` Git 仓库），**严禁删除原有历史视频与素材**，请将 `https://github.com/yidehai-tech/yidehai-video` 克隆到独立持久目录（推荐桌面或文档目录 `yidehai-video`）；若当前已是本仓库，先执行 `git pull`；
+> 2. **一键迁移 + 清理残留**：进入新版 `yidehai-video` 目录运行：
+>    ```sh
+>    python3 scripts/setup_project.py --cleanup-legacy-skills
+>    ```
+>    （若当前宿主有私有技能目录，一并传 `--extra-skills-dir "<宿主技能目录>"`；若旧业务文件夹存在 `.agents/skills/yidehai-video` 或 `.skills/yidehai-video` 软链/托管副本，也一并安全移除）；
+>    该脚本会**一步到位同时完成**：
+>    - **无损平滑迁移**：自动把本机旧版 `~/.yidehai-video/` 中的 `config.json`（含 API Key、本地素材路径）、`used_history.json`（防重账本）、`tasks.json`（任务台账）、`cache/`（已下载空镜/BGM/图片）及 `bin/`（Windows FFmpeg）自动迁入本项目 `.yidehai/`，**自动重写旧目录内部路径**，并**完整保留原 `~/.yidehai-video/` 作备份**；
+>    - **生成可见仪表盘**：若存在历史任务，自动刷新 `outputs/dashboard.html`；
+>    - **自动补齐基础免费依赖**：`ffmpeg`/`ffprobe`、`edge-tts`、`Pillow`。
+> 3. **核对并报出新路径**：运行 `python3 scripts/media_manager.py config --show` 与 `python3 scripts/task_tracker.py summary`（**严禁打印密钥明文**），**严禁在初始化后反问用户「要不要帮你装 FFmpeg / edge-tts」**！直接汇报新版 `yidehai-video` 文件夹路径、`outputs/dashboard.html` 路径与迁移状态（不追问素材路径，留到真正出片前的 `preflight` 门禁再一次性补齐）。
 
 ---
 

@@ -7,6 +7,12 @@
 面向 **亿德海（yidehai）旧衣回收** 垂直场景的 **独立项目级 AI 短视频生产工作台**（专为团队非技术同学打造）。  
 从 `v3.0.0` 起彻底告别全局 Skill 挂载与跨工具目录同步坑：**把本项目文件夹下载到电脑上，在任意桌面 AI 工具里打开这个文件夹即可直接出片**。内置业务事实库、多平台合规硬拦截、四维选题防枯竭矩阵、全局素材防重账本与跨平台渲染管线。
 
+> **致 AI 助手（首次部署 / 旧版升级自动执行指令，禁止二次确认）**：  
+> 当用户把本仓库链接或本文件发给你并让你「装好 / 初始化 / 从旧版升级」时，请一次性连续完成：  
+> 1. 若当前目录不是 `yidehai-video` Git 仓库，请克隆到独立持久文件夹（推荐桌面或文档目录 `yidehai-video`），**严禁删除用户原业务文件夹里已有的历史成片与素材**；若已是本仓库则执行 `git pull`；  
+> 2. 进入 `yidehai-video` 目录立刻运行 `python3 scripts/setup_project.py`（从 v2.x 旧版升级时加 `--cleanup-legacy-skills` 并附带 `--extra-skills-dir` 清理自身私有技能残留；若原业务文件夹存在旧的 `.agents/skills/yidehai-video` 或 `.skills/yidehai-video` 软链/托管副本，也一并安全移除）；  
+> 3. **严禁装完文件后停下来反问用户「要不要安装 FFmpeg / edge-tts」**；直接输出核对后的新项目文件夹路径、`outputs/dashboard.html` 路径，并提示用户后续打开该文件夹按根目录 [`AGENTS.md`](AGENTS.md) 对话出片（不要打印任何密钥明文）。
+
 ---
 
 ## 核心特性
@@ -39,43 +45,58 @@
 
 ---
 
-## 快速开始（非技术同学 2 步上手）
+## 快速开始（非技术同学 2 步上手 · 无需敲命令）
 
-### 方式 A：新同学首次使用
+### 方式 A：新同学首次使用（复制这段话发给 AI 即可）
 
-1. **下载本项目文件夹**：从 GitHub 克隆或下载 `yidehai-video` 压缩包解压到常用目录（如桌面或文档目录）：
-   ```bash
-   git clone https://github.com/yidehai-tech/yidehai-video.git
-   ```
-2. **用桌面 AI 工具打开这个文件夹**（WorkBuddy / 豆包桌面版 / Claude Code / Codex / Cursor / Antigravity 均可），在对话框里直接说：
+1. **让 AI 自动下载并初始化（只需做一次）**：打开任意桌面 AI 工具（WorkBuddy / 豆包桌面版 / Claude Code / Codex / Cursor / Antigravity），直接发送：
    ```text
-   帮我初始化项目
+   请帮我把 https://github.com/yidehai-tech/yidehai-video 下载到我电脑的文档目录（文件夹名 yidehai-video），然后立刻进入该目录运行 python3 scripts/setup_project.py 一次性装好基础环境（不要中途停下来反复确认）。完成后把文件夹路径发给我。
    ```
-   AI 会一次性自动检查并安装基础依赖（`FFmpeg`、`Pillow`、`edge-tts`）。随后直接开始对话出片即可：
-   ```text
-   帮我做一条换季清衣柜的大字报视频
-   ```
+   > *(开发者可选命令行：`git clone https://github.com/yidehai-tech/yidehai-video.git && cd yidehai-video && python3 scripts/setup_project.py`)*
+2. **打开文件夹直接出片**：在 AI 工具里点 **「打开文件夹」→ 选中刚下好的 `yidehai-video` 文件夹**，以后每次做视频都打开这个文件夹直接对话即可。
 
-### 方式 B：老同学（原 v2.x 全局 Skill 用户）平滑升级
+### 方式 B：老同学（已建过文件夹 / 装过 v2.x 旧 Skill）平滑升级
 
-如果你之前在电脑上安装过旧版全局 Skill 并配置过素材目录、API Key 或已有出片防重记录：
+如果你之前在电脑上建过出片文件夹、装过旧版全局 Skill 并配置过素材目录、API Key 或已有防重记录，直接在你正在用的 AI 工具里发送下面这段话（无需手动敲命令）：
 
-1. 克隆（或拉取）新版 `yidehai-video` 项目文件夹，并用你的桌面 AI 工具**打开这个文件夹**；
-2. 在对话框里发送：
-   ```text
-   帮我初始化并把旧配置迁移过来，顺便清理旧的全局 Skill 挂载
-   ```
-   （对应命令 `python3 scripts/setup_project.py --cleanup-legacy-skills`）。脚本会自动将原 `~/.yidehai-video/` 里的所有 API Key、素材路径、防重账本、历史任务与缓存**无损迁入本项目 `.yidehai/`**（原目录完整保留作为备份），并安全清理各宿主目录里残留的旧版全局 Skill 软链/副本。
+```text
+yidehai-video 已经升级到 v3.0.0 项目级工作台（仓库地址：https://github.com/yidehai-tech/yidehai-video），以后不再作为全局 Skill 使用，而是直接打开项目文件夹就能出片。
+
+请帮我一次性完成平滑升级，不要中途反复确认：
+1. 获取新版项目：如果当前文件夹本身就是 yidehai-video 的 Git 仓库，直接 git pull 更新到最新版；如果当前只是之前挂载过旧 Skill 的普通文件夹，请把最新版仓库克隆到一个独立的新文件夹（比如桌面或文档下的 yidehai-video），绝对不要删除我原文件夹里之前做好的视频和素材。
+2. 一键迁移旧配置 + 清理旧全局 Skill：进入新版 yidehai-video 目录运行 python3 scripts/setup_project.py --cleanup-legacy-skills（如果当前工具还有自己的私有技能目录，一并加上 --extra-skills-dir 清理掉旧版 yidehai-video / yidehai-video-skill 残留；若原业务文件夹里有旧的 .agents/skills/yidehai-video 或 .skills/yidehai-video 托管副本/软链，也安全清理掉）。
+3. 确认结果：迁移完成后，运行 python3 scripts/media_manager.py config --show 和 python3 scripts/task_tracker.py summary 帮我核对旧配置（API Key、素材目录、防重记录、历史任务）是否都已无损迁入新项目的 .yidehai/（保留 ~/.yidehai-video/ 原目录作备份，不要打印密钥明文）。
+4. 最后告诉我新版 yidehai-video 文件夹的完整路径以及 outputs/dashboard.html 的路径——之后我就在这个 AI 工具里直接打开这个新版文件夹开始出片。
+```
 
 > **免手动兜底**：即使忘记先跑初始化，首次运行任意出片或 `preflight` / `config` / `summary` 命令时，系统也会静默自动完成 `~/.yidehai-video/` 到 `.yidehai/` 的无损迁移与路径重写。
 
 ### 方式 C：纯对话 / 知识库型 Agent 接入（豆包网页版、通义千问、Kimi、扣子等）
 
-无本地终端环境的工具，将本仓库的 `AGENTS.md` 与 `knowledge/01–11` 导入对应智能体或项目知识库，即可自动切换为 **编导 + 合规自检 + Prompt 工厂模式**，直接产出合规脚本、双封面文案及可直接粘贴进即梦/Flow/剪映的防穿帮提示词。
+无本地终端环境的工具，下载本仓库压缩包后将根目录的 `AGENTS.md` 与 `knowledge/01–11` 导入对应智能体或项目知识库，直接发送：
+```text
+帮我出一套换季清衣柜的旧衣回收短视频方案，包含合规脚本、9:16 和 3:4 双封面大字、6 平台发布文案，以及可以直接粘贴到即梦/剪映的提示词。
+```
 
 ---
 
-## 日常配置与常用指令（参考 `config.example.json`）
+## 常用对话指令（打开项目文件夹后直接说）
+
+AI 会自动加载根目录 [`AGENTS.md`](AGENTS.md)，团队同学只需用大白话提需求：
+
+- **单条 0 成本日更（最常用）**：`帮我做一条换季清衣柜的大字报视频` / `帮我做一条旧衣回收避坑指南的动效片`
+- **批量出片**：`帮我批量生成 20 条旧衣回收视频`（默认 50% 大字报 + 50% 动效片，0 积分）
+- **本地实拍出片**：`用我的本地实拍素材做一条实拍快剪` / `做一条前后对比片`
+- **视频 + 小红书轮播一鱼两吃**：`帮我做一条旧羽绒服回收的图文故事片`
+- **查看统计与历史记录**：`看看今天出了几条视频，把统计面板发我`（双击 `outputs/dashboard.html` 即可离线查看）
+- **同步最新版**：`更新一下 yidehai-video`
+
+> **首次补配置说明**：第一次出某种类型的视频时，如果缺风景空镜源、BGM 源或本地实拍文件夹，AI 会主动停下来一次性问你补充（直接把本地素材文件夹路径或免费 Key 发给 AI 即可），之后会永久记住在 `.yidehai/config.json` 中。
+
+---
+
+## 开发者配置与常用 CLI（参考 `config.example.json`）
 
 首次出片前如果缺少某类素材源或 Key，`preflight` 门禁会自动拦停并一次性提示补充；所有配置保存在 `.yidehai/config.json`（永不入库）：
 
