@@ -166,6 +166,6 @@ yidehai-video/
     ├── api_image_runner.py                # 云端聚合生图调度器（复用 API 余额为图文故事片自动出图）
     ├── batch_runner.py                    # 批量出片调度器（断点续跑 + 可视化审片台 review.html）
     ├── task_tracker.py                    # 跨 Agent 共享任务台账（.yidehai/tasks.json）与离线仪表盘（outputs/dashboard.html）
-    ├── motion_templates.py                # 动效片三套母版（5 套浅色主题轮换，无品牌浮条）
+    ├── motion_templates.py                # 动效片三套 MotionFace 风格母版（split_compare / pack_archive / ranking，5 套浅色主题轮换）
     ├── fetch_om_components.py             # OpenMotion native 组件镜像补齐与 sha256 校验脚本
     └── link_skill.py                      # [已废弃兼容桩] v2.x 旧指令兼容转发至 setup_project.py

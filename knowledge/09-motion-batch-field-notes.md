@@ -117,7 +117,7 @@ ffmpeg -y -v error -i silent.mp4 -i voice.mp3 -i bgm_10s.wav \
 ## 四、渲染稳定性：优先用 `motion_templates.py` 或浅色改版旧底版
 
 - **不要从零自写 CSS `@keyframes` 动效工程**：在 HyperFrames 的 seek 下只有第 1 屏有画面，后续屏全空；内联 delay → class delay、ID 级规则、scene 前缀 ID、去 opacity 基类、加 stage 动画均试过无效。
-- **优先直接使用已内置 5 套浅色主题的 `scripts/motion_templates.py`**；若要复用本机已出过片的 OpenMotion 历史底版（旧羽绒服 A / 打包3件事 B / 怕坑秤 C，其中部分底版原版为深绿背景）：
+- **优先直接使用已内置 3 套 MotionFace 风格新母版（`split_compare` 一卡拆两类 / `pack_archive` 卡片归档 / `ranking` 排名攀升）与 5 套浅色主题的 `scripts/motion_templates.py`**；若要复用本机已出过片的 OpenMotion 历史底版（旧羽绒服 A / 打包3件事 B / 怕坑秤 C，其中部分底版原版为深绿背景）：
   - **【强制硬规 · 单条也不例外】复用旧底版后，必须按上方第二节 2.3/2.4 注入 5 套浅色主题之一替换整屏背景！** 严禁偷懒保留 `#102A22` 深绿裸背景直接出片；
   - 按 `data-hf-id` 精确替换文案 + 删品牌浮条块 + **同步改 `index.html` 的 `data-composition-variables` 默认值**（否则标题仍是旧文案）。
 - 带红色删除线的节点替换时保持「被划掉」语义（如「留着占窝」），写反会变成「都不用自己扛」被划掉。

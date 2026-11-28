@@ -126,7 +126,7 @@ def detect_openmotion_runtime() -> dict | None:
 
 
 def build_motion_html_project(item: dict, proj_dir: Path, idx: int = 0) -> str:
-    """调用三套高转化动效片母版（chat 聊天气泡 / checklist 清单打勾 / kinetic 动能大字）生成工程。"""
+    """调用三套 MotionFace 风格高质感动效片母版（split_compare 一卡拆两类 / pack_archive 卡片归档 / ranking 排名攀升）生成工程。"""
     return motion_templates.build_motion_project(item, proj_dir, fallback_index=idx)
 
 
